@@ -163,65 +163,35 @@ export const api = {
     }
   },
   
-  register: async (email: string, password: string, phone: string, fullName: string) => {
+  register: async (data: { fullName: string; email: string; password: string; phone: string }) => {
     try {
-      console.log('Sending registration request for:', email);
-      const response = await getClient().post('/api/Auth/register', { email, password, phone, fullName });
-      console.log('Register API response:', response);
-      
-      // Kiểm tra cấu trúc dữ liệu phản hồi
-      if (response && response.data) {
-        // Trường hợp API trả về cấu trúc {isSuccess, data, message}
-        if (response.data.isSuccess && response.data.data) {
-          // Convert API response to expected format
-          const userData = response.data.data;
-          return {
-            data: {
-              token: userData.token || userData.accessToken || '',
-              user: {
-                id: userData.id || userData.userId || 0,
-                email: userData.email || email,
-                username: userData.username || fullName,
-                fullName: userData.fullName || fullName,
-                phone: userData.phone || phone
-              }
-            }
-          };
-        }
-        // Trường hợp API trả về trực tiếp {token, user}
-        else if (response.data.token) {
-          return { data: response.data };
-        }
-        // Nếu API chỉ trả về thông báo thành công mà không có token, giả lập dữ liệu
-        else if (response.data.isSuccess || response.data.message === 'Register successful') {
-          return {
-            data: {
-              token: 'temp_token_' + Date.now(),
-              user: {
-                id: 0,
-                email: email,
-                username: fullName,
-                fullName: fullName,
-                phone: phone
-              }
-            }
-          };
-        }
-        // Trường hợp lỗi được trả về từ API
-        else if (response.data.message) {
-          throw new Error(response.data.message);
-        }
-      }
-      
-      throw new Error('Invalid response format from server');
+      const response = await getClient().post('/api/Auth/register', data);
+      return response.data;
     } catch (error) {
       console.error('Register error in API service:', error);
       throw error;
     }
   },
   
-  confirmEmail: (token: string) =>
-    getClient().get(`/api/Auth/confirm-email?token=${encodeURIComponent(token)}`),
+  resendConfirmationCode: async (email: string) => {
+    try {
+      const response = await getClient().post('/api/Auth/resend-confirmation', { email });
+      return response.data;
+    } catch (error) {
+      console.error('Error resending confirmation code:', error);
+      throw error;
+    }
+  },
+  
+  confirmEmail: async (token: string) => {
+    try {
+      const response = await getClient().get(`/api/Auth/confirm-email?token=${encodeURIComponent(token)}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error confirming email:', error);
+      throw error;
+    }
+  },
   
   // Cart API
   getCart: async (userId: string) => {

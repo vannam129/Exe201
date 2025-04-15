@@ -8,12 +8,14 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   RefreshControl,
+  Alert,
 } from "react-native";
 import { RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "../navigators/AppNavigator";
 import api from "../services/api";
 import { MenuItem } from "../types";
-import { Button } from "react-native-elements";
+import { useAuth } from "../contexts/AuthContext";
+import { useNavigation } from "@react-navigation/native";
 
 type MenuScreenRouteProp = RouteProp<RootStackParamList, "Menu">;
 
@@ -21,12 +23,36 @@ interface MenuScreenProps {
   route?: MenuScreenRouteProp;
 }
 
+interface ProductApiItem {
+  productId: string;
+  productName: string;
+  price: number;
+  description: string;
+  status: boolean;
+  imageURL: string;
+  categoryId: string;
+  category?: string;
+}
+
+interface ApiResponse {
+  $id: string;
+  data: {
+    $id: string;
+    $values: ProductApiItem[];
+  };
+  isSuccess: boolean;
+  message: string | null;
+}
+
 const MenuScreen: React.FC<MenuScreenProps> = ({ route }) => {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [addingToCart, setAddingToCart] = useState<string | null>(null);
   const category = route?.params?.category || "All";
   const categoryId = route?.params?.categoryId;
+  const { isAuthenticated, user, getUserId } = useAuth();
+  const navigation = useNavigation();
 
   const fetchMenuItems = async () => {
     try {
@@ -34,31 +60,78 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ route }) => {
       let products: MenuItem[] = [];
 
       if (categoryId) {
-        // Nếu có categoryId, sử dụng API Product với categoryId
-        console.log(`Fetching products for categoryId: ${categoryId}`);
-        products = await api.getProductsByCategory(categoryId.toString());
+        console.log(
+          `[DEBUG] Fetching products for categoryId: ${categoryId}, category name: ${category}`
+        );
+        const response = (await api.getProductsByCategory(
+          categoryId.toString()
+        )) as unknown as ApiResponse;
+        console.log(
+          "[DEBUG] Raw API Response:",
+          JSON.stringify(response, null, 2)
+        );
+
+        // Xử lý response theo cấu trúc mới
+        if (response && response.data && response.data.$values) {
+          products = response.data.$values.map((item) => ({
+            id: item.productId,
+            name: item.productName,
+            description: item.description || "",
+            price: item.price,
+            imageUrl: item.imageURL || "",
+            categoryId: item.categoryId,
+            category: category,
+          }));
+        }
       } else {
-        // Nếu không có categoryId, lấy tất cả sản phẩm
-        console.log("Fetching all products");
-        products = await api.getProducts();
+        console.log("[DEBUG] Fetching all products");
+        const response = (await api.getProducts()) as unknown as ApiResponse;
+        console.log(
+          "[DEBUG] All products response:",
+          JSON.stringify(response, null, 2)
+        );
+
+        if (response && response.data && response.data.$values) {
+          products = response.data.$values.map((item) => ({
+            id: item.productId,
+            name: item.productName,
+            description: item.description || "",
+            price: item.price,
+            imageUrl: item.imageURL || "",
+            categoryId: item.categoryId,
+            category: item.category || "",
+          }));
+        }
       }
 
       console.log(
-        `Found ${products.length} products for category: ${category}`
+        `[DEBUG] Found ${products.length} products for category: ${category}`
       );
+      if (products.length === 0) {
+        console.log("[DEBUG] No products found. This might be an issue.");
+      } else {
+        console.log(
+          "[DEBUG] Products found:",
+          products.map((p) => ({
+            id: p.id,
+            name: p.name,
+            categoryId: p.categoryId,
+          }))
+        );
+      }
+
       setMenuItems(products);
     } catch (error) {
-      console.error(`Error fetching products for ${category}`, error);
-      // Set fallback data in case of error
-      setMenuItems([
-        {
-          id: 1,
-          name: "Sample Item",
-          description: "This is a sample menu item",
-          price: 9.99,
-          category: category,
-        },
-      ]);
+      console.error("[DEBUG] Error details:", {
+        error,
+        message: error instanceof Error ? error.message : "Unknown error",
+        categoryId,
+        category,
+      });
+      Alert.alert(
+        "Error",
+        "Could not load menu items. Please try again later."
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -74,32 +147,67 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ route }) => {
     fetchMenuItems();
   }, [categoryId, category]);
 
+  const addToCart = async (item: MenuItem) => {
+    if (!isAuthenticated || !user) {
+      Alert.alert("Login Required", "Please login to add items to cart", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Login", onPress: () => navigation.navigate("Login" as never) },
+      ]);
+      return;
+    }
+
+    try {
+      setAddingToCart(item.id.toString());
+      const userId = await getUserId();
+      await api.addToCart(userId, item.id.toString(), 1);
+      Alert.alert("Success", `Added ${item.name} to cart`, [
+        { text: "Continue Shopping", style: "cancel" },
+        {
+          text: "View Cart",
+          onPress: () => navigation.navigate("Cart" as never),
+        },
+      ]);
+    } catch (error) {
+      console.error("Error adding to cart:", error);
+      Alert.alert("Error", "Could not add item to cart. Please try again.");
+    } finally {
+      setAddingToCart(null);
+    }
+  };
+
   const renderMenuItem = ({ item }: { item: MenuItem }) => (
     <View style={styles.card}>
-      {item.imageUrl && (
-        <Image source={{ uri: item.imageUrl }} style={styles.cardImage} />
-      )}
-      <View style={styles.cardContent}>
-        <Text style={styles.cardTitle}>{item.name}</Text>
-        <Text style={styles.cardDescription}>
-          {item.description || "No description"}
-        </Text>
-        <Text style={styles.cardPrice}>
-          {typeof item.price === "number"
-            ? item.price.toLocaleString("vi-VN", {
+      <Image
+        source={{ uri: item.imageUrl || "https://via.placeholder.com/150" }}
+        style={styles.cardImage}
+        resizeMode="cover"
+      />
+      <View style={styles.cardOverlay}>
+        <View style={styles.cardContent}>
+          <Text style={styles.cardTitle}>{item.name}</Text>
+          <Text style={styles.cardDescription} numberOfLines={2}>
+            {item.description || "No description"}
+          </Text>
+          <View style={styles.cardFooter}>
+            <Text style={styles.cardPrice}>
+              {item.price.toLocaleString("vi-VN", {
                 style: "currency",
                 currency: "VND",
-              })
-            : "0 VND"}
-        </Text>
-        <Button
-          title="Add to Cart"
-          buttonStyle={styles.addButton}
-          onPress={() => {
-            // Add to cart functionality
-            console.log("Added to cart:", item);
-          }}
-        />
+              })}
+            </Text>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => addToCart(item)}
+              disabled={addingToCart === item.id.toString()}
+            >
+              {addingToCart === item.id.toString() ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.addButtonText}>+</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
     </View>
   );
@@ -114,8 +222,10 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ route }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Menu</Text>
-      <Text style={styles.categoryTitle}>Category: {category}</Text>
+      <View style={styles.header}>
+        <Text style={styles.categoryTitle}>{category}</Text>
+        <Text style={styles.itemCount}>{menuItems.length} items</Text>
+      </View>
 
       {menuItems.length > 0 ? (
         <FlatList
@@ -126,11 +236,14 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ route }) => {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
+          showsVerticalScrollIndicator={false}
         />
       ) : (
-        <Text style={styles.noItemsText}>
-          No menu items found for this category
-        </Text>
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyText}>
+            No menu items found for this category
+          </Text>
+        </View>
       )}
     </View>
   );
@@ -139,71 +252,116 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
-    backgroundColor: "#f8f8f8",
+    backgroundColor: "#f8f9fa",
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#f8f9fa",
   },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 8,
-    color: "#333",
+  header: {
+    padding: 20,
+    paddingTop: 40,
+    backgroundColor: "#fff",
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   categoryTitle: {
-    fontSize: 18,
-    marginBottom: 16,
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 5,
+  },
+  itemCount: {
+    fontSize: 16,
     color: "#666",
   },
   listContainer: {
-    paddingBottom: 16,
+    padding: 15,
   },
   card: {
-    backgroundColor: "#ffffff",
-    borderRadius: 10,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 2,
+    backgroundColor: "#fff",
+    borderRadius: 15,
+    marginBottom: 15,
+    height: 200,
     overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   cardImage: {
-    height: 180,
     width: "100%",
+    height: "100%",
+  },
+  cardOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.3)",
+    justifyContent: "flex-end",
   },
   cardContent: {
-    padding: 12,
+    padding: 15,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    borderTopLeftRadius: 15,
+    borderTopRightRadius: 15,
   },
   cardTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    marginBottom: 8,
+    color: "#333",
+    marginBottom: 5,
   },
   cardDescription: {
+    fontSize: 14,
     color: "#666",
-    marginBottom: 8,
+    marginBottom: 10,
+  },
+  cardFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   cardPrice: {
+    fontSize: 18,
     fontWeight: "bold",
     color: "#f50",
-    marginBottom: 8,
-    fontSize: 16,
   },
   addButton: {
     backgroundColor: "#f50",
-    borderRadius: 5,
-    marginTop: 4,
+    width: 35,
+    height: 35,
+    borderRadius: 17.5,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  noItemsText: {
-    textAlign: "center",
-    marginTop: 40,
+  addButtonText: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "bold",
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  emptyText: {
     fontSize: 16,
     color: "#666",
+    textAlign: "center",
   },
 });
 

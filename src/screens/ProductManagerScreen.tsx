@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { useAuth } from "../contexts/AuthContext";
 import api from "../services/api";
@@ -24,6 +25,7 @@ const ProductManagerScreen = () => {
   const [categories, setCategories] = useState<
     { id: string | number; name: string }[]
   >([]);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [productForm, setProductForm] = useState({
     id: "",
@@ -228,6 +230,19 @@ const ProductManagerScreen = () => {
     </View>
   );
 
+  // Tạo hàm refresh
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await Promise.all([fetchProducts(), fetchCategories()]);
+    } catch (error) {
+      console.error("Error refreshing data:", error);
+      Alert.alert("Lỗi", "Không thể tải lại dữ liệu.");
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -245,13 +260,23 @@ const ProductManagerScreen = () => {
       </TouchableOpacity>
 
       {products.length === 0 ? (
-        <Text style={styles.emptyText}>Chưa có sản phẩm nào</Text>
+        <ScrollView
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          contentContainerStyle={styles.emptyContainer}
+        >
+          <Text style={styles.emptyText}>Chưa có sản phẩm nào</Text>
+        </ScrollView>
       ) : (
         <FlatList
           data={products}
           renderItem={renderProductItem}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         />
       )}
 
@@ -551,6 +576,11 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: "#333",
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
 

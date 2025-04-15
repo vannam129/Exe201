@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native";
 import { Input, Button } from "react-native-elements";
 import { useNavigation, NavigationProp } from "@react-navigation/native";
 import { useAuth } from "../contexts/AuthContext";
-import { RegisterRequest } from "../types";
+import api from "../services/api";
 import { RootStackParamList } from "../navigators/AppNavigator";
 
 const RegisterScreen = () => {
@@ -12,45 +12,73 @@ const RegisterScreen = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [phone, setPhone] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
-  const { register, isLoading, error } = useAuth();
 
-  const handleRegister = async () => {
-    if (password !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
-      return;
-    }
-
+  const validateInputs = () => {
     if (!fullName || !email || !phone || !password) {
       Alert.alert("Error", "All fields are required");
-      return;
+      return false;
     }
 
-    try {
-      await register(fullName, email, phone, password);
+    if (password !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match");
+      return false;
+    }
 
-      if (!error) {
-        Alert.alert(
-          "Registration Successful",
-          "Please check your email for a confirmation token. You need to confirm your email to activate your account.",
-          [
-            {
-              text: "Later",
-              style: "cancel",
-              onPress: () => navigation.navigate("Login" as never),
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      Alert.alert("Error", "Please enter a valid email address");
+      return false;
+    }
+
+    // Validate phone format (simple check for numbers only)
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(phone)) {
+      Alert.alert("Error", "Please enter a valid 10-digit phone number");
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleRegister = async () => {
+    if (!validateInputs()) return;
+
+    setIsLoading(true);
+    try {
+      // Call register API with object parameter
+      const response = await api.register({
+        fullName,
+        email,
+        password,
+        phone,
+      });
+
+      console.log("Registration response:", response);
+
+      // Show success message and navigate to email confirmation
+      Alert.alert(
+        "Registration Successful",
+        "We've sent a confirmation code to your email. Please check your inbox and spam folder.",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              navigation.navigate("EmailConfirm", { email });
             },
-            {
-              text: "Confirm Email Now",
-              onPress: () => {
-                navigation.navigate("EmailConfirm", { email });
-              },
-            },
-          ]
-        );
-      }
-    } catch (error) {
+          },
+        ]
+      );
+    } catch (error: any) {
       console.error("Registration error:", error);
-      Alert.alert("Error", "Network error, please try again");
+      const errorMessage =
+        error.response?.data?.message ||
+        "Registration failed. Please try again.";
+      Alert.alert("Error", errorMessage);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -69,6 +97,7 @@ const RegisterScreen = () => {
           leftIcon={{ type: "font-awesome", name: "user", color: "#8CC63F" }}
           containerStyle={styles.inputContainer}
           autoCapitalize="words"
+          disabled={isLoading}
         />
 
         <Input
@@ -83,19 +112,18 @@ const RegisterScreen = () => {
           containerStyle={styles.inputContainer}
           autoCapitalize="none"
           keyboardType="email-address"
+          disabled={isLoading}
         />
 
         <Input
-          placeholder="Phone"
+          placeholder="Phone (10 digits)"
           value={phone}
           onChangeText={setPhone}
-          leftIcon={{
-            type: "font-awesome",
-            name: "phone",
-            color: "#8CC63F",
-          }}
+          leftIcon={{ type: "font-awesome", name: "phone", color: "#8CC63F" }}
           containerStyle={styles.inputContainer}
           keyboardType="phone-pad"
+          disabled={isLoading}
+          maxLength={10}
         />
 
         <Input
@@ -105,6 +133,7 @@ const RegisterScreen = () => {
           leftIcon={{ type: "font-awesome", name: "lock", color: "#8CC63F" }}
           secureTextEntry
           containerStyle={styles.inputContainer}
+          disabled={isLoading}
         />
 
         <Input
@@ -114,12 +143,11 @@ const RegisterScreen = () => {
           leftIcon={{ type: "font-awesome", name: "lock", color: "#8CC63F" }}
           secureTextEntry
           containerStyle={styles.inputContainer}
+          disabled={isLoading}
         />
 
-        {error && <Text style={styles.errorText}>{error}</Text>}
-
         <Button
-          title="Register"
+          title={isLoading ? "Creating Account..." : "Register"}
           buttonStyle={styles.registerButton}
           onPress={handleRegister}
           loading={isLoading}
@@ -130,6 +158,7 @@ const RegisterScreen = () => {
           <Text style={styles.loginText}>Already have an account? </Text>
           <TouchableOpacity
             onPress={() => navigation.navigate("Login" as never)}
+            disabled={isLoading}
           >
             <Text style={styles.loginLink}>Login</Text>
           </TouchableOpacity>
@@ -171,11 +200,6 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: 5,
     marginTop: 10,
-  },
-  errorText: {
-    color: "red",
-    marginBottom: 10,
-    textAlign: "center",
   },
   loginContainer: {
     flexDirection: "row",

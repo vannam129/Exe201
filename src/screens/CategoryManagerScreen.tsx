@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   Modal,
   Alert,
   ActivityIndicator,
+  RefreshControl,
+  ScrollView,
 } from "react-native";
 import { useAuth } from "../contexts/AuthContext";
 import api from "../services/api";
@@ -26,6 +28,7 @@ const CategoryManagerScreen = () => {
   );
   const [categoryName, setCategoryName] = useState("");
   const [categoryDescription, setCategoryDescription] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (!isAdmin()) {
@@ -142,6 +145,18 @@ const CategoryManagerScreen = () => {
     }
   };
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await fetchCategories();
+    } catch (error) {
+      console.error("Error refreshing categories:", error);
+      Alert.alert("Lỗi", "Không thể tải lại danh sách danh mục.");
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
   const renderCategoryItem = ({ item }: { item: Category }) => (
     <View style={styles.categoryItem}>
       <View style={styles.categoryInfo}>
@@ -184,13 +199,23 @@ const CategoryManagerScreen = () => {
       </TouchableOpacity>
 
       {categories.length === 0 ? (
-        <Text style={styles.emptyText}>Chưa có danh mục nào</Text>
+        <ScrollView
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          contentContainerStyle={styles.emptyContainer}
+        >
+          <Text style={styles.emptyText}>Chưa có danh mục nào</Text>
+        </ScrollView>
       ) : (
         <FlatList
           data={categories}
           renderItem={renderCategoryItem}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         />
       )}
 
@@ -390,6 +415,11 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: "#333",
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
 

@@ -9,58 +9,76 @@ import {
   Linking,
 } from "react-native";
 import { Input, Button } from "react-native-elements";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { RootStackParamList } from "../navigators/AppNavigator";
 import api from "../services/api";
 
-type RouteParams = {
-  email?: string;
-  token?: string;
-};
+type EmailConfirmScreenRouteProp = RouteProp<
+  RootStackParamList,
+  "EmailConfirm"
+>;
 
 const EmailConfirmScreen = () => {
   const [token, setToken] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const [isConfirmed, setIsConfirmed] = useState(false);
   const navigation = useNavigation();
-  const route = useRoute();
+  const route = useRoute<EmailConfirmScreenRouteProp>();
+  const email = route.params?.email;
 
-  // Lấy token từ route params nếu có
-  useEffect(() => {
-    const params = route.params as RouteParams;
-    if (params?.token) {
-      setToken(params.token);
-      handleConfirm(params.token);
-    }
-  }, [route.params]);
-
-  const handleConfirm = async (confirmToken: string) => {
-    if (!confirmToken.trim()) {
-      Alert.alert("Error", "Please enter the confirmation token");
+  const handleConfirm = async () => {
+    if (!token.trim()) {
+      Alert.alert("Error", "Please enter the confirmation code");
       return;
     }
 
     setIsLoading(true);
     try {
-      const response = await api.confirmEmail(confirmToken);
+      const response = await api.confirmEmail(token);
+      console.log("Confirmation response:", response);
 
-      if (response.status === 200) {
-        setIsConfirmed(true);
-        Alert.alert("Success", "Your email has been confirmed successfully", [
+      setIsConfirmed(true);
+      Alert.alert(
+        "Success",
+        "Your email has been confirmed successfully! You can now login.",
+        [
           {
-            text: "Go to Login",
+            text: "Login",
             onPress: () => navigation.navigate("Login" as never),
           },
-        ]);
-      } else {
-        Alert.alert("Error", "Invalid or expired token");
-      }
+        ]
+      );
     } catch (error: any) {
       console.error("Email confirmation error:", error);
       const errorMessage =
-        error.response?.data?.message || "Failed to confirm email";
+        error.response?.data?.message || "Invalid or expired confirmation code";
       Alert.alert("Error", errorMessage);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (!email) {
+      Alert.alert("Error", "Email address is missing");
+      return;
+    }
+
+    setIsResending(true);
+    try {
+      await api.resendConfirmationCode(email);
+      Alert.alert(
+        "Success",
+        "A new confirmation code has been sent to your email"
+      );
+    } catch (error: any) {
+      console.error("Resend code error:", error);
+      const errorMessage =
+        error.response?.data?.message || "Failed to resend confirmation code";
+      Alert.alert("Error", errorMessage);
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -73,50 +91,57 @@ const EmailConfirmScreen = () => {
       <View style={styles.header}>
         <Text style={styles.title}>Email Confirmation</Text>
         <Text style={styles.subtitle}>
-          Please enter the confirmation token sent to your email
+          Please enter the confirmation code sent to:
         </Text>
+        <Text style={styles.emailText}>{email}</Text>
       </View>
 
       <View style={styles.form}>
         <Input
-          placeholder="Confirmation Token"
+          placeholder="Enter confirmation code"
           value={token}
           onChangeText={setToken}
-          leftIcon={{ type: "font-awesome", name: "key", color: "#f50" }}
+          leftIcon={{ type: "font-awesome", name: "key", color: "#8CC63F" }}
           containerStyle={styles.inputContainer}
+          keyboardType="number-pad"
+          maxLength={6}
           disabled={isLoading || isConfirmed}
         />
 
         <Button
-          title={isLoading ? "Confirming..." : "Confirm Email"}
-          buttonStyle={styles.confirmButton}
-          onPress={() => handleConfirm(token)}
+          title={isLoading ? "Verifying..." : "Verify Email"}
+          buttonStyle={[styles.button, styles.verifyButton]}
+          onPress={handleConfirm}
           loading={isLoading}
           disabled={isLoading || isConfirmed || !token.trim()}
         />
 
         {!isConfirmed && (
-          <TouchableOpacity style={styles.openMailButton} onPress={openMailApp}>
-            <Text style={styles.openMailText}>Open Email App</Text>
-          </TouchableOpacity>
-        )}
-
-        {isConfirmed && (
-          <View style={styles.successContainer}>
-            <Text style={styles.successText}>
-              Email confirmed successfully!
-            </Text>
+          <>
             <Button
-              title="Go to Login"
-              buttonStyle={styles.loginButton}
-              onPress={() => navigation.navigate("Login" as never)}
+              title={isResending ? "Resending..." : "Resend Code"}
+              type="outline"
+              buttonStyle={styles.button}
+              titleStyle={{ color: "#8CC63F" }}
+              onPress={handleResendCode}
+              loading={isResending}
+              disabled={isResending || isLoading}
             />
-          </View>
+
+            <TouchableOpacity
+              style={styles.openMailButton}
+              onPress={openMailApp}
+              disabled={isLoading || isResending}
+            >
+              <Text style={styles.openMailText}>Open Email App</Text>
+            </TouchableOpacity>
+          </>
         )}
 
         <View style={styles.linkContainer}>
           <TouchableOpacity
             onPress={() => navigation.navigate("Login" as never)}
+            disabled={isLoading || isResending}
           >
             <Text style={styles.linkText}>Back to Login</Text>
           </TouchableOpacity>
@@ -135,18 +160,23 @@ const styles = StyleSheet.create({
   header: {
     marginTop: 50,
     alignItems: "center",
-    marginBottom: 50,
+    marginBottom: 40,
   },
   title: {
     fontSize: 30,
     fontWeight: "bold",
-    color: "#f50",
+    color: "#8CC63F",
+    marginBottom: 10,
   },
   subtitle: {
     fontSize: 16,
     color: "#666",
-    marginTop: 10,
-    textAlign: "center",
+    marginBottom: 5,
+  },
+  emailText: {
+    fontSize: 16,
+    color: "#333",
+    fontWeight: "bold",
   },
   form: {
     width: "100%",
@@ -154,19 +184,21 @@ const styles = StyleSheet.create({
   inputContainer: {
     marginBottom: 20,
   },
-  confirmButton: {
-    backgroundColor: "#f50",
+  button: {
     height: 50,
     borderRadius: 5,
-    marginBottom: 20,
+    marginBottom: 15,
+    borderColor: "#8CC63F",
+  },
+  verifyButton: {
+    backgroundColor: "#8CC63F",
   },
   openMailButton: {
     alignItems: "center",
     padding: 15,
-    marginBottom: 20,
   },
   openMailText: {
-    color: "#f50",
+    color: "#8CC63F",
     fontWeight: "bold",
     fontSize: 16,
   },
@@ -175,27 +207,8 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   linkText: {
-    color: "#999",
+    color: "#666",
     fontSize: 16,
-  },
-  successContainer: {
-    alignItems: "center",
-    marginTop: 20,
-    padding: 20,
-    backgroundColor: "#f0f8ff",
-    borderRadius: 10,
-  },
-  successText: {
-    color: "green",
-    fontSize: 18,
-    marginBottom: 20,
-    fontWeight: "bold",
-  },
-  loginButton: {
-    backgroundColor: "#4CAF50",
-    width: 150,
-    height: 40,
-    borderRadius: 5,
   },
 });
 

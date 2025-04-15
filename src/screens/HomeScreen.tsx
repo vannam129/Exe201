@@ -9,6 +9,7 @@ import {
   Image,
   Alert,
   RefreshControl,
+  ScrollView,
 } from "react-native";
 import { Button } from "react-native-elements";
 import { useNavigation } from "@react-navigation/native";
@@ -249,176 +250,260 @@ const HomeScreen = () => {
     }
   };
 
-  const renderMenuItem = ({ item }: { item: MenuItem }) => (
-    <View style={styles.card}>
-      {item.imageUrl && (
-        <Image source={{ uri: item.imageUrl }} style={styles.cardImage} />
-      )}
-      <View style={styles.cardContent}>
-        <Text style={styles.cardTitle}>{item.name}</Text>
-        <Text style={styles.cardDescription}>
-          {item.description || "No description"}
-        </Text>
-        <Text style={styles.cardPrice}>
-          {typeof item.price === "number"
-            ? item.price.toLocaleString("vi-VN", {
-                style: "currency",
-                currency: "VND",
-              })
-            : "0 VND"}
-        </Text>
-        <Button
-          title="Add to Cart"
-          buttonStyle={styles.addButton}
-          loading={addingToCart}
-          onPress={() => addToCart(item)}
-        />
-      </View>
-    </View>
-  );
-
-  const renderCategoryItem = (category: Category) => {
-    console.log("Rendering category:", category);
-    return (
-      <TouchableOpacity
-        key={category.id.toString()}
-        style={styles.categoryButton}
-        onPress={() =>
-          navigation.navigate("Menu", {
-            category: category.name,
-            categoryId: category.id,
-          })
-        }
-      >
-        <Text style={styles.categoryButtonText}>{category.name}</Text>
-      </TouchableOpacity>
-    );
-  };
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8CC63F" />
+        <ActivityIndicator size="large" color="#f50" />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Welcome to Food Order App</Text>
-      <Text style={styles.subtitle}>Popular Items</Text>
-
-      <FlatList
-        data={popularItems}
-        renderItem={renderMenuItem}
-        keyExtractor={(item) => item.id.toString()}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.listContainer}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      />
-
-      <View style={styles.categoriesContainer}>
-        <Text style={styles.subtitle}>Categories ({categories.length})</Text>
-        <View style={styles.categoryButtonsContainer}>
-          {categories.map((category) => renderCategoryItem(category))}
+      {/* Header Section */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.welcomeText}>Welcome back!</Text>
+          <Text style={styles.title}>Food Order App</Text>
         </View>
+      </View>
+
+      {/* Categories Section */}
+      <View style={styles.categoriesSection}>
+        <Text style={styles.sectionTitle}>Categories</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoriesScrollView}
+        >
+          {categories.map((category) => (
+            <TouchableOpacity
+              key={category.id.toString()}
+              style={styles.categoryCard}
+              onPress={() =>
+                navigation.navigate("Menu", {
+                  category: category.name,
+                  categoryId: category.id,
+                })
+              }
+            >
+              <View style={styles.categoryIcon}>
+                <Text style={styles.categoryEmoji}>
+                  {getCategoryEmoji(category.name)}
+                </Text>
+              </View>
+              <Text style={styles.categoryName}>{category.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* Popular Items Section */}
+      <View style={styles.popularSection}>
+        <Text style={styles.sectionTitle}>Popular Items</Text>
+        <FlatList
+          data={popularItems}
+          renderItem={({ item }) => (
+            <View style={styles.foodCard}>
+              <Image
+                source={{
+                  uri: item.imageUrl || "https://via.placeholder.com/150",
+                }}
+                style={styles.foodImage}
+              />
+              <View style={styles.foodInfo}>
+                <Text style={styles.foodName}>{item.name}</Text>
+                <Text style={styles.foodDescription} numberOfLines={2}>
+                  {item.description || "No description"}
+                </Text>
+                <View style={styles.foodPriceRow}>
+                  <Text style={styles.foodPrice}>
+                    {item.price.toLocaleString("vi-VN", {
+                      style: "currency",
+                      currency: "VND",
+                    })}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.addToCartButton}
+                    onPress={() => addToCart(item)}
+                    disabled={addingToCart}
+                  >
+                    {addingToCart ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <Text style={styles.addToCartText}>+</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+          keyExtractor={(item) => item.id.toString()}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.popularItemsList}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        />
       </View>
     </View>
   );
 };
 
+// Hàm helper để lấy emoji cho từng category
+const getCategoryEmoji = (categoryName: string): string => {
+  const emojiMap: { [key: string]: string } = {
+    Drinks: "🥤",
+    Foods: "🍱",
+    Desserts: "🍰",
+    Snacks: "🍿",
+    // Thêm các category khác nếu cần
+  };
+  return emojiMap[categoryName] || "🍽️";
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
-    backgroundColor: "#f8f8f8",
+    backgroundColor: "#f8f9fa",
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#f8f9fa",
+  },
+  header: {
+    padding: 20,
+    paddingTop: 40,
+    backgroundColor: "#fff",
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  welcomeText: {
+    fontSize: 16,
+    color: "#666",
+    marginBottom: 4,
   },
   title: {
     fontSize: 24,
     fontWeight: "bold",
-    marginBottom: 16,
     color: "#333",
   },
-  subtitle: {
+  categoriesSection: {
+    paddingVertical: 20,
+  },
+  sectionTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    marginTop: 16,
-    marginBottom: 8,
     color: "#333",
+    paddingHorizontal: 20,
+    marginBottom: 15,
   },
-  listContainer: {
-    paddingVertical: 8,
+  categoriesScrollView: {
+    paddingHorizontal: 15,
   },
-  card: {
-    width: 250,
-    backgroundColor: "#ffffff",
-    borderRadius: 10,
-    marginRight: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 2,
-    overflow: "hidden",
+  categoryCard: {
+    alignItems: "center",
+    marginHorizontal: 5,
+    width: 100,
   },
-  cardImage: {
-    height: 150,
-    width: "100%",
-  },
-  cardContent: {
-    padding: 12,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 8,
-  },
-  cardDescription: {
-    color: "#666",
-    marginBottom: 8,
-  },
-  cardPrice: {
-    fontWeight: "bold",
-    color: "#8CC63F",
-    marginBottom: 8,
-  },
-  addButton: {
-    backgroundColor: "#8CC63F",
-    borderRadius: 5,
-    marginTop: 4,
-  },
-  categoriesContainer: {
-    marginTop: 16,
-  },
-  categoryButtonsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-  },
-  categoryButton: {
+  categoryIcon: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     backgroundColor: "#fff",
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
-    width: "48%",
+    justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
     shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 2,
+    shadowRadius: 3.84,
+    elevation: 5,
+    marginBottom: 8,
   },
-  categoryButtonText: {
+  categoryEmoji: {
+    fontSize: 30,
+  },
+  categoryName: {
+    fontSize: 14,
+    color: "#333",
+    textAlign: "center",
+  },
+  popularSection: {
+    flex: 1,
+    paddingTop: 10,
+  },
+  popularItemsList: {
+    padding: 20,
+  },
+  foodCard: {
+    flexDirection: "row",
+    backgroundColor: "#fff",
+    borderRadius: 15,
+    marginBottom: 15,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+    overflow: "hidden",
+  },
+  foodImage: {
+    width: 100,
+    height: 100,
+  },
+  foodInfo: {
+    flex: 1,
+    padding: 15,
+  },
+  foodName: {
+    fontSize: 16,
     fontWeight: "bold",
     color: "#333",
+    marginBottom: 5,
+  },
+  foodDescription: {
+    fontSize: 13,
+    color: "#666",
+    marginBottom: 10,
+  },
+  foodPriceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  foodPrice: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#f50",
+  },
+  addToCartButton: {
+    backgroundColor: "#f50",
+    width: 35,
+    height: 35,
+    borderRadius: 17.5,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  addToCartText: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "bold",
   },
 });
 

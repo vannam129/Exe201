@@ -192,7 +192,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     try {
       console.log("AuthContext: Calling register API for", email);
-      const response = await api.register(email, password, phone, fullName);
+      const response = await api.register({
+        email,
+        password,
+        phone,
+        fullName,
+      });
       console.log("AuthContext: Register response received", response);
 
       // Kiểm tra dữ liệu trả về
