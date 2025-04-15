@@ -17,6 +17,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   error: string | null;
   getUserId: () => Promise<string>;
+  isAdmin: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -52,24 +53,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Hàm lấy userId từ thông tin đăng nhập đã lưu
   const getUserId = async (): Promise<string> => {
+    console.log("AuthContext: Bắt đầu lấy userId");
+
     // Ưu tiên lấy từ state hiện tại
     if (user) {
       const userId = user.id || user.userId;
-      if (userId) {
+      console.log("AuthContext: userId từ state user:", userId);
+
+      if (userId && userId !== "unknown" && userId !== "") {
+        console.log("AuthContext: Trả về userId từ state:", userId);
         return userId.toString();
       }
+    } else {
+      console.log("AuthContext: Không có user trong state");
     }
 
     // Nếu không có trong state, lấy từ AsyncStorage
-    const userData = await AsyncStorage.getItem("user_data");
-    if (userData) {
-      const parsedUser = JSON.parse(userData);
-      if (parsedUser && (parsedUser.id || parsedUser.userId)) {
-        return (parsedUser.id || parsedUser.userId).toString();
+    try {
+      const userData = await AsyncStorage.getItem("user_data");
+      console.log(
+        "AuthContext: User data từ AsyncStorage:",
+        userData ? "Có dữ liệu" : "Không có dữ liệu"
+      );
+
+      if (userData) {
+        const parsedUser = JSON.parse(userData);
+        console.log(
+          "AuthContext: Parsed user data:",
+          JSON.stringify(parsedUser, null, 2)
+        );
+
+        if (parsedUser) {
+          const userId = parsedUser.id || parsedUser.userId;
+
+          if (userId && userId !== "unknown" && userId !== "") {
+            console.log("AuthContext: Trả về userId từ AsyncStorage:", userId);
+            return userId.toString();
+          }
+        }
       }
+    } catch (error) {
+      console.error(
+        "AuthContext: Lỗi khi đọc user_data từ AsyncStorage:",
+        error
+      );
     }
 
-    throw new Error("Không tìm thấy thông tin người dùng");
+    // Nếu không tìm thấy userId hợp lệ, ném lỗi
+    console.error(
+      "AuthContext: Không tìm thấy userId hợp lệ, cần đăng nhập lại"
+    );
+    throw new Error("Không tìm thấy thông tin người dùng hợp lệ");
   };
 
   const login = async (email: string, password: string) => {
@@ -77,44 +111,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setError(null);
 
     try {
-      console.log("AuthContext: Calling login API for", email);
-      const response = await api.login(email, password);
-      console.log("AuthContext: Login response received", response);
+      console.log("AuthContext: Bắt đầu đăng nhập với email:", email);
 
-      // Kiểm tra dữ liệu trả về để tránh lỗi undefined
-      if (response && response.data) {
-        // Log data để debug
-        console.log("Raw response data:", JSON.stringify(response.data));
+      // Bước 1: Đăng nhập
+      const loginResponse = await api.login(email, password);
+      console.log(
+        "AuthContext: Kết quả đăng nhập từ API:",
+        JSON.stringify(loginResponse.data, null, 2)
+      );
 
-        // Xử lý response.data với any type để tránh lỗi
-        const responseData: any = response.data;
+      // Bước 2: Lưu token
+      const token = loginResponse.data.token;
+      await AsyncStorage.setItem("auth_token", token);
+      console.log("AuthContext: Đã lưu token");
 
-        // Tạo đối tượng người dùng
-        const userData: User = {
-          id: responseData.user?.id || responseData.userId || 0,
-          userId: responseData.user?.userId || responseData.userId,
-          email: responseData.user?.email || responseData.email || "",
-          username: responseData.user?.username || responseData.fullName || "",
-          fullName: responseData.user?.fullName || responseData.fullName || "",
-          phone: responseData.user?.phone || responseData.phone || "",
-        };
+      // Bước 3: Lấy thông tin người dùng từ API
+      const userId = loginResponse.data.userId;
+      console.log("AuthContext: userId từ API:", userId);
 
-        // Lưu vào AsyncStorage
-        await AsyncStorage.setItem("auth_token", responseData.token);
-        await AsyncStorage.setItem("user_data", JSON.stringify(userData));
-
-        // Cập nhật state
-        setUser(userData);
-        setIsAuthenticated(true);
-        console.log(
-          "Login successful:",
-          userData.email,
-          "with ID:",
-          userData.id
+      // Đảm bảo đã nhận được userId từ API
+      if (!userId) {
+        console.error("AuthContext: Không nhận được userId từ API");
+        throw new Error(
+          "Thông tin đăng nhập không hợp lệ. API không trả về userId."
         );
-      } else {
-        console.error("Invalid response structure:", response);
-        throw new Error("Invalid response data");
+      }
+
+      // Lưu thông tin user từ API
+      const userData = {
+        id: userId,
+        userId: userId,
+        email: email,
+        username: loginResponse.data.fullName || email.split("@")[0],
+        fullName: loginResponse.data.fullName || "",
+        role: loginResponse.data.role || "customer",
+      };
+
+      console.log(
+        "AuthContext: Lưu thông tin người dùng từ API:\n",
+        JSON.stringify(userData, null, 2)
+      );
+      await AsyncStorage.setItem("user_data", JSON.stringify(userData));
+      setUser(userData);
+
+      setIsAuthenticated(true);
+      console.log(
+        "AuthContext: Đăng nhập thành công, đã thiết lập isAuthenticated = true"
+      );
+
+      // Kiểm tra xác nhận dữ liệu đã lưu
+      try {
+        const savedUserData = await AsyncStorage.getItem("user_data");
+        if (savedUserData) {
+          console.log(
+            "AuthContext: Xác nhận - Đã lưu user_data thành công:",
+            JSON.stringify(JSON.parse(savedUserData), null, 2)
+          );
+        }
+      } catch (e) {
+        console.error("AuthContext: Lỗi khi kiểm tra user_data đã lưu:", e);
       }
     } catch (error: any) {
       const errorMessage = error.message || "Login failed";
@@ -207,6 +262,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  // Thêm hàm isAdmin để kiểm tra vai trò hiện tại
+  const isAdmin = (): boolean => {
+    if (!user) return false;
+    // Kiểm tra cả "admin" và "Admin" để không phân biệt chữ hoa/thường
+    return user.role?.toLowerCase() === "admin";
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -218,6 +280,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         logout,
         error,
         getUserId,
+        isAdmin,
       }}
     >
       {children}

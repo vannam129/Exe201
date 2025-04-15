@@ -14,7 +14,6 @@ import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RootStackParamList } from "../navigators/AppNavigator";
 import { useAuth } from "../contexts/AuthContext";
-import api from "../services/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type LoginScreenNavigationProp = StackNavigationProp<
@@ -26,7 +25,7 @@ const LoginScreen = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const navigation = useNavigation<LoginScreenNavigationProp>();
-  const { login, isLoading, error } = useAuth();
+  const { login, isLoading } = useAuth();
   const [loading, setLoading] = useState(false);
   const [errorMessage, setError] = useState("");
 
@@ -40,24 +39,41 @@ const LoginScreen = () => {
     setError("");
 
     try {
-      console.log("Attempting to login with:", email);
+      console.log("LoginScreen: Đang cố gắng đăng nhập với email:", email);
       await login(email, password);
 
-      // Log thông tin người dùng sau khi đăng nhập thành công
+      // Kiểm tra dữ liệu người dùng sau khi đăng nhập
+      const token = await AsyncStorage.getItem("auth_token");
       const userData = await AsyncStorage.getItem("user_data");
-      console.log("Login successful. User data stored:", userData);
+      console.log("LoginScreen: Đăng nhập thành công. Token tồn tại:", !!token);
+      console.log(
+        "LoginScreen: User data stored:",
+        userData ? JSON.parse(userData) : null
+      );
 
-      // Không cần navigate vì AppNavigator sẽ tự động chuyển sang MainTabs khi isAuthenticated là true
+      // AuthContext sẽ tự động đặt isAuthenticated = true, AppNavigator sẽ chuyển hướng
     } catch (error: any) {
-      setError(error.message || "Đăng nhập thất bại");
-      console.error("Login error:", error);
+      console.error("LoginScreen: Lỗi đăng nhập:", error);
 
-      let errorMessage = "Đăng nhập thất bại";
-      if (error.message) {
-        errorMessage = error.message;
+      // Xử lý lỗi chi tiết hơn
+      let errorMsg = "Đăng nhập thất bại";
+
+      if (error.response) {
+        // Lỗi từ API
+        console.log("LoginScreen: Lỗi API response:", error.response.data);
+        if (error.response.data && error.response.data.message) {
+          errorMsg = error.response.data.message;
+        } else if (error.response.status === 401) {
+          errorMsg = "Email hoặc mật khẩu không đúng";
+        } else if (error.response.status === 404) {
+          errorMsg = "Tài khoản không tồn tại";
+        }
+      } else if (error.message) {
+        errorMsg = error.message;
       }
 
-      Alert.alert("Lỗi đăng nhập", errorMessage);
+      setError(errorMsg);
+      Alert.alert("Lỗi đăng nhập", errorMsg);
     } finally {
       setLoading(false);
     }

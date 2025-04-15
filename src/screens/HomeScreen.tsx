@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Image,
   Alert,
+  RefreshControl,
 } from "react-native";
 import { Button } from "react-native-elements";
 import { useNavigation } from "@react-navigation/native";
@@ -41,84 +42,87 @@ const HomeScreen = () => {
   const [popularItems, setPopularItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [addingToCart, setAddingToCart] = useState(false);
   const navigation = useNavigation<HomeScreenNavigationProp>();
   const { user, isAuthenticated, getUserId } = useAuth();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Fetch products from /api/Product
-        const productsResponse = await api.getProducts();
-        console.log("API response:", productsResponse);
+  const fetchData = async () => {
+    try {
+      // Fetch products from /api/Product
+      const productsResponse = await api.getProducts();
+      console.log("API response:", productsResponse);
 
-        let products: MenuItem[] = [];
+      let products: MenuItem[] = [];
 
-        // Check if response is in the new format with $id and $values
-        if (
-          productsResponse &&
-          typeof productsResponse === "object" &&
-          "$id" in productsResponse &&
-          "$values" in productsResponse
-        ) {
-          // Type assertion to treat the response as the ProductApiResponse
-          const typedResponse =
-            productsResponse as unknown as ProductApiResponse;
+      // Check if response is in the new format with $id and $values
+      if (
+        productsResponse &&
+        typeof productsResponse === "object" &&
+        "$id" in productsResponse &&
+        "$values" in productsResponse
+      ) {
+        // Type assertion to treat the response as the ProductApiResponse
+        const typedResponse = productsResponse as unknown as ProductApiResponse;
 
-          // Map the new format to our MenuItem format
-          products = typedResponse.$values.map((item: ProductApiItem) => ({
-            id: item.productId,
-            name: item.productName,
-            description: item.description,
-            price: item.price,
-            imageUrl: item.imageURL,
-            categoryId: item.categoryId,
-            category: "", // Adding the required category field with an empty string as default
-          }));
+        // Map the new format to our MenuItem format
+        products = typedResponse.$values.map((item: ProductApiItem) => ({
+          id: item.productId,
+          name: item.productName,
+          description: item.description,
+          price: item.price,
+          imageUrl: item.imageURL,
+          categoryId: item.categoryId,
+          category: "", // Adding the required category field with an empty string as default
+        }));
 
-          console.log(
-            "Mapped products:",
-            products.map((p) => p.name).join(", ")
-          );
-        } else if (Array.isArray(productsResponse)) {
-          // Handle old format (direct array)
-          products = productsResponse;
-        }
-
-        // Lấy 5 sản phẩm đầu tiên làm Popular Items
-        if (products && products.length > 0) {
-          setPopularItems(products.slice(0, 5));
-          console.log(
-            "Popular products from API:",
-            products
-              .slice(0, 5)
-              .map((p) => p.name)
-              .join(", ")
-          );
-        }
-
-        // Fetch categories
-        const categoriesResponse = await api.getCategories();
-        // Check if categoriesResponse exists and has expected structure
-        console.log(
-          "HomeScreen received categories:",
-          JSON.stringify(categoriesResponse)
-        );
-
-        if (categoriesResponse && Array.isArray(categoriesResponse)) {
-          console.log(
-            "Setting categories from API:",
-            categoriesResponse.map((c) => c.name).join(", ")
-          );
-          setCategories(categoriesResponse);
-        }
-      } catch (error) {
-        console.error("Error fetching data", error);
-      } finally {
-        setLoading(false);
+        console.log("Mapped products:", products.map((p) => p.name).join(", "));
+      } else if (Array.isArray(productsResponse)) {
+        // Handle old format (direct array)
+        products = productsResponse;
       }
-    };
 
+      // Lấy 5 sản phẩm đầu tiên làm Popular Items
+      if (products && products.length > 0) {
+        setPopularItems(products.slice(0, 5));
+        console.log(
+          "Popular products from API:",
+          products
+            .slice(0, 5)
+            .map((p) => p.name)
+            .join(", ")
+        );
+      }
+
+      // Fetch categories
+      const categoriesResponse = await api.getCategories();
+      // Check if categoriesResponse exists and has expected structure
+      console.log(
+        "HomeScreen received categories:",
+        JSON.stringify(categoriesResponse)
+      );
+
+      if (categoriesResponse && Array.isArray(categoriesResponse)) {
+        console.log(
+          "Setting categories from API:",
+          categoriesResponse.map((c) => c.name).join(", ")
+        );
+        setCategories(categoriesResponse);
+      }
+    } catch (error) {
+      console.error("Error fetching data", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
     fetchData();
   }, []);
 
@@ -311,6 +315,9 @@ const HomeScreen = () => {
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.listContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       />
 
       <View style={styles.categoriesContainer}>

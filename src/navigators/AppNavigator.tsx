@@ -6,6 +6,7 @@ import {
 import { createStackNavigator } from "@react-navigation/stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { useAuth } from "../contexts/AuthContext";
+import { Ionicons } from "@expo/vector-icons";
 
 // Tạo navigationRef để có thể điều hướng từ bên ngoài component
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
@@ -19,6 +20,10 @@ import MenuScreen from "../screens/MenuScreen";
 import CartScreen from "../screens/CartScreen";
 import OrdersScreen from "../screens/OrdersScreen";
 import ProfileScreen from "../screens/ProfileScreen";
+// import OrderDetailScreen from "../screens/OrderDetailScreen";
+import OrderManagerScreen from "../screens/OrderManagerScreen";
+import ProductManagerScreen from "../screens/ProductManagerScreen";
+import CategoryManagerScreen from "../screens/CategoryManagerScreen";
 
 // Create navigator types
 export type RootStackParamList = {
@@ -31,6 +36,11 @@ export type RootStackParamList = {
   Orders: undefined;
   OrderDetails: { orderId: string };
   Profile: undefined;
+  OrderDetail: { orderId: string };
+  OrderManager: undefined;
+  ProductManager: undefined;
+  CategoryManager: undefined;
+  MainTabs: undefined;
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -47,14 +57,101 @@ const AuthStack = () => {
 };
 
 const MainTabs = () => {
+  const { isAdmin } = useAuth();
+
   return (
-    <Tab.Navigator>
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Menu" component={MenuScreen} />
-      <Tab.Screen name="Cart" component={CartScreen} />
-      <Tab.Screen name="Orders" component={OrdersScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName;
+          if (route.name === "Home") {
+            iconName = focused ? "home" : "home-outline";
+          } else if (route.name === "Menu") {
+            iconName = focused ? "restaurant" : "restaurant-outline";
+          } else if (route.name === "Cart") {
+            iconName = focused ? "cart" : "cart-outline";
+          } else if (route.name === "Orders") {
+            iconName = focused ? "list" : "list-outline";
+          } else if (route.name === "Profile") {
+            iconName = focused ? "person" : "person-outline";
+          }
+          return <Ionicons name={iconName as any} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: "#f50",
+        tabBarInactiveTintColor: "gray",
+      })}
+    >
+      <Tab.Screen
+        name="Home"
+        component={HomeScreen}
+        options={{ headerShown: false }}
+      />
+      <Tab.Screen
+        name="Menu"
+        component={MenuScreen}
+        options={{ headerShown: false }}
+      />
+      {!isAdmin() && (
+        <Tab.Screen
+          name="Cart"
+          component={CartScreen}
+          options={{ headerShown: false }}
+        />
+      )}
+      <Tab.Screen
+        name="Orders"
+        component={OrdersScreen}
+        options={{ headerShown: false }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{ headerShown: false }}
+      />
     </Tab.Navigator>
+  );
+};
+
+const RootStack = () => {
+  return (
+    <Stack.Navigator
+      initialRouteName="MainTabs"
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: "#f50",
+        },
+        headerTintColor: "#fff",
+        headerTitleStyle: {
+          fontWeight: "bold",
+        },
+      }}
+    >
+      <Stack.Screen
+        name="MainTabs"
+        component={MainTabs}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="OrderDetails"
+        component={OrdersScreen}
+        options={{ title: "Chi tiết đơn hàng" }}
+      />
+      <Stack.Screen
+        name="OrderManager"
+        component={OrderManagerScreen}
+        options={{ title: "Quản lý đơn hàng" }}
+      />
+      <Stack.Screen
+        name="ProductManager"
+        component={ProductManagerScreen}
+        options={{ title: "Quản lý sản phẩm" }}
+      />
+      <Stack.Screen
+        name="CategoryManager"
+        component={CategoryManagerScreen}
+        options={{ title: "Quản lý danh mục" }}
+      />
+    </Stack.Navigator>
   );
 };
 
@@ -68,7 +165,7 @@ const AppNavigator = () => {
 
   return (
     <NavigationContainer ref={navigationRef}>
-      {isAuthenticated ? <MainTabs /> : <AuthStack />}
+      {isAuthenticated ? <RootStack /> : <AuthStack />}
     </NavigationContainer>
   );
 };

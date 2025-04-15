@@ -49,14 +49,32 @@ export interface Order {
 export interface OrderResponse {
   orderId: string;
   userId: string;
-  consigneeName: string;
-  deliverAddress: string;
-  phoneNumber: string;
-  deliveryId: string;
-  orderStatus: string;
   orderDate: string;
-  orderDetails: OrderDetailResponse[];
-  totalAmount: number;
+  status?: string;
+  orderStatus?: string;
+  totalPrice: number | string;
+  consigneeName: string;
+  phoneNumber: string;
+  deliverAddress: string;
+  orderDetails?: {
+    $values?: Array<{
+      orderDetailId?: string;
+      orderId?: string;
+      productId: string;
+      productName?: string;
+      price?: number;
+      quantity?: number;
+      productQuantity?: number;
+    }>;
+  } | Array<{
+    orderDetailId?: string;
+    orderId?: string;
+    productId: string;
+    productName?: string;
+    price?: number;
+    quantity?: number;
+    productQuantity?: number;
+  }>;
 }
 
 // Interface cho chi tiết đơn hàng trả về từ API
@@ -84,6 +102,7 @@ export interface User {
   fullName?: string;
   email: string;
   phone?: string;
+  role?: string;
 }
 
 export interface AuthState {

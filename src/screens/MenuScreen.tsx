@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   Image,
   ActivityIndicator,
   TouchableOpacity,
+  RefreshControl,
 } from "react-native";
 import { RouteProp } from "@react-navigation/native";
 import { RootStackParamList } from "../navigators/AppNavigator";
@@ -23,48 +24,55 @@ interface MenuScreenProps {
 const MenuScreen: React.FC<MenuScreenProps> = ({ route }) => {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const category = route?.params?.category || "All";
   const categoryId = route?.params?.categoryId;
 
-  useEffect(() => {
-    const fetchMenuItems = async () => {
-      try {
-        setLoading(true);
-        let products: MenuItem[] = [];
+  const fetchMenuItems = async () => {
+    try {
+      setLoading(true);
+      let products: MenuItem[] = [];
 
-        if (categoryId) {
-          // Nếu có categoryId, sử dụng API Product với categoryId
-          console.log(`Fetching products for categoryId: ${categoryId}`);
-          products = await api.getProductsByCategory(categoryId.toString());
-        } else {
-          // Nếu không có categoryId, lấy tất cả sản phẩm
-          console.log("Fetching all products");
-          products = await api.getProducts();
-        }
-
-        console.log(
-          `Found ${products.length} products for category: ${category}`
-        );
-        setMenuItems(products);
-      } catch (error) {
-        console.error(`Error fetching products for ${category}`, error);
-        // Set fallback data in case of error
-        setMenuItems([
-          {
-            id: 1,
-            name: "Sample Item",
-            description: "This is a sample menu item",
-            price: 9.99,
-            category: category,
-          },
-        ]);
-      } finally {
-        setLoading(false);
+      if (categoryId) {
+        // Nếu có categoryId, sử dụng API Product với categoryId
+        console.log(`Fetching products for categoryId: ${categoryId}`);
+        products = await api.getProductsByCategory(categoryId.toString());
+      } else {
+        // Nếu không có categoryId, lấy tất cả sản phẩm
+        console.log("Fetching all products");
+        products = await api.getProducts();
       }
-    };
 
+      console.log(
+        `Found ${products.length} products for category: ${category}`
+      );
+      setMenuItems(products);
+    } catch (error) {
+      console.error(`Error fetching products for ${category}`, error);
+      // Set fallback data in case of error
+      setMenuItems([
+        {
+          id: 1,
+          name: "Sample Item",
+          description: "This is a sample menu item",
+          price: 9.99,
+          category: category,
+        },
+      ]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
     fetchMenuItems();
   }, [category, categoryId]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchMenuItems();
+  }, [categoryId, category]);
 
   const renderMenuItem = ({ item }: { item: MenuItem }) => (
     <View style={styles.card}>
@@ -115,6 +123,9 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ route }) => {
           renderItem={renderMenuItem}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
         />
       ) : (
         <Text style={styles.noItemsText}>

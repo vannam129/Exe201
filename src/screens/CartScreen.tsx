@@ -36,17 +36,35 @@ const CartScreen: React.FC = () => {
     deliverAddress: "",
     phoneNumber: "",
   });
-  const [supplierForm, setSupplierForm] = useState({
-    supplierName: "Nhà hàng ABC",
-    supplierPhone: "0123456789",
-  });
-  const [deliveries, setDeliveries] = useState<any[]>([]);
-  const [selectedDeliveryId, setSelectedDeliveryId] = useState<string>("");
-  const [loadingDeliveries, setLoadingDeliveries] = useState(false);
-  const [isPickerVisible, setIsPickerVisible] = useState(false);
+  const defaultDeliveryId = "0ef44e02-4515-4c8a-9b93-b123840290fe";
 
   const navigation = useNavigation<CartScreenNavigationProp>();
   const { user, isAuthenticated, getUserId, logout } = useAuth();
+
+  // Kiểm tra role từ user context
+  useEffect(() => {
+    const checkUserRole = async () => {
+      try {
+        const userData = await AsyncStorage.getItem("user_data");
+        if (userData) {
+          const parsedUser = JSON.parse(userData);
+          if (parsedUser.role === "Admin") {
+            // Nếu là Admin, chuyển về màn hình Home
+            navigation.navigate("Home");
+            return;
+          }
+        }
+      } catch (error) {
+        console.error("Error checking user role:", error);
+      }
+    };
+    checkUserRole();
+  }, [navigation]);
+
+  // Nếu user là Admin, không render gì cả
+  if (user?.role === "Admin") {
+    return null;
+  }
 
   // Hàm xử lý chuyển đến màn hình đăng nhập
   const handleLoginRedirect = () => {
@@ -55,16 +73,12 @@ const CartScreen: React.FC = () => {
 
   useEffect(() => {
     fetchCartItems();
-    if (isAuthenticated) {
-      fetchDeliveries();
-    }
 
     // Thêm listener để kiểm tra lại khi focus vào màn hình (sau khi đăng nhập)
     const unsubscribe = navigation.addListener("focus", () => {
       if (isAuthenticated) {
         console.log("Cart screen focused, refreshing cart items...");
         fetchCartItems();
-        fetchDeliveries();
       }
     });
 
@@ -107,40 +121,40 @@ const CartScreen: React.FC = () => {
 
         // Gọi API giỏ hàng với userId
         const response = await api.getCart(userId);
-        console.log("Cart API response:", response);
+        console.log("Cart API response:", JSON.stringify(response, null, 2));
 
         // Xử lý phản hồi API
         if (response && response.isSuccess && response.data) {
-          const { cartId, userId: cartUserId, products } = response.data;
-          console.log("Cart ID:", cartId);
-          console.log("Cart User ID:", cartUserId);
-          console.log("Products in cart:", products);
+          let cartItems = [];
 
-          if (Array.isArray(products) && products.length > 0) {
-            // Xử lý sản phẩm
-            const formattedItems = products.map((product) => ({
-              id: product.productId,
-              productId: product.productId,
-              productName: product.productName,
-              price: product.price,
-              quantity: product.quantity,
-              imageURL:
-                product.imageURL ||
-                // Tạo URL ảnh dựa vào productId nếu không có
-                `https://source.unsplash.com/random/300x200?food&id=${product.productId}`,
+          // Lấy products trực tiếp từ response.data.products
+          if (response.data.products && Array.isArray(response.data.products)) {
+            cartItems = response.data.products;
+            console.log(
+              "Cart items from response:",
+              JSON.stringify(cartItems, null, 2)
+            );
+          }
+
+          // Lọc bỏ các sản phẩm có quantity = 0 và chuyển đổi dữ liệu
+          cartItems = cartItems
+            .filter((item: { quantity: number }) => item.quantity > 0)
+            .map((item: any) => ({
+              id: item.productId,
+              productId: item.productId,
+              productName: item.productName,
+              price: item.price,
+              quantity: item.quantity,
+              imageURL: item.imageURL,
             }));
 
-            console.log("Formatted cart items:", formattedItems);
-            setCartItems(formattedItems);
-          } else {
-            console.log("Cart is empty");
-            setCartItems([]);
-          }
-        } else {
-          console.warn(
-            "Failed to fetch cart data:",
-            response?.message || "Unknown error"
+          console.log(
+            "Final formatted cart items:",
+            JSON.stringify(cartItems, null, 2)
           );
+          setCartItems(cartItems);
+        } else {
+          console.log("Cart is empty or invalid response");
           setCartItems([]);
         }
       } catch (idError) {
@@ -160,82 +174,6 @@ const CartScreen: React.FC = () => {
       setCartItems([]);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchDeliveries = async () => {
-    try {
-      setLoadingDeliveries(true);
-      console.log("Fetching deliveries...");
-
-      // Gọi API GET /api/Delivery để lấy danh sách
-      const response = await axios.get(
-        "https://balamaappwebapi-h8fmf5hjh7hcbsa0.southeastasia-01.azurewebsites.net/api/Delivery"
-      );
-
-      console.log("Deliveries response:", response.data);
-
-      // Xử lý phản hồi API với cấu trúc $id và $values
-      let deliveriesData = [];
-
-      if (response.data && response.data.$values) {
-        // Trường hợp dữ liệu có cấu trúc $id và $values như mẫu
-        deliveriesData = response.data.$values;
-      } else if (response.data && Array.isArray(response.data)) {
-        // Trường hợp API trả về mảng trực tiếp
-        deliveriesData = response.data;
-      } else if (
-        response.data &&
-        response.data.isSuccess &&
-        Array.isArray(response.data.data)
-      ) {
-        // Trường hợp API trả về {isSuccess, data}
-        deliveriesData = response.data.data;
-      } else if (
-        response.data &&
-        response.data.isSuccess &&
-        response.data.data &&
-        response.data.data.$values
-      ) {
-        // Trường hợp API trả về {isSuccess, data: {$id, $values}}
-        deliveriesData = response.data.data.$values;
-      } else {
-        console.warn("Unknown delivery response format:", response.data);
-        deliveriesData = [];
-      }
-
-      console.log("Processed deliveries data:", deliveriesData);
-
-      if (deliveriesData.length > 0) {
-        setDeliveries(deliveriesData);
-        setSelectedDeliveryId(deliveriesData[0].deliveryId);
-      } else {
-        console.warn("No deliveries found");
-        setDeliveries([]);
-      }
-    } catch (error) {
-      console.error("Error fetching deliveries:", error);
-      // Tạo dữ liệu mẫu để test nếu không fetch được
-      const mockDeliveries = [
-        {
-          deliveryId: "0ef44e02-4515-4c8a-9b93-b123840290fe",
-          deliveryDate: new Date().toISOString(),
-          supplierName: "Nhà hàng ABC",
-          supplierPhone: "0123456789",
-        },
-        {
-          deliveryId: "707cbac8-1c77-4b2b-b445-63e413fb0285",
-          deliveryDate: new Date().toISOString(),
-          supplierName: "Shipper 24h",
-          supplierPhone: "0987654321",
-        },
-      ];
-      setDeliveries(mockDeliveries);
-      if (mockDeliveries.length > 0) {
-        setSelectedDeliveryId(mockDeliveries[0].deliveryId);
-      }
-    } finally {
-      setLoadingDeliveries(false);
     }
   };
 
@@ -268,17 +206,38 @@ const CartScreen: React.FC = () => {
         productId: item.productId,
         quantity: newQuantity,
       });
-      await api.updateCartItem(userId, item.productId, newQuantity);
-      fetchCartItems(); // Refetch cart to sync with server
+
+      const response = await api.updateCartItem(
+        userId,
+        item.productId,
+        newQuantity
+      );
+
+      if (response && response.isSuccess) {
+        console.log("Cart update successful:", response);
+
+        // Cập nhật local state để tránh phải refresh toàn bộ giỏ hàng
+        setCartItems((currentItems) =>
+          currentItems.map((cartItem) =>
+            cartItem.productId === item.productId
+              ? { ...cartItem, quantity: newQuantity }
+              : cartItem
+          )
+        );
+      } else {
+        // Nếu cập nhật thất bại, làm mới toàn bộ giỏ hàng
+        fetchCartItems();
+      }
     } catch (error) {
       console.error("Error updating cart:", error);
       Alert.alert("Lỗi", "Không thể cập nhật giỏ hàng. Vui lòng thử lại sau.");
+      fetchCartItems(); // Refresh để đồng bộ lại với server
     } finally {
       setUpdating(false);
     }
   };
 
-  const removeItem = async (item: CartItem) => {
+  const removeItem = async (item: CartItem, showAlert: boolean = true) => {
     if (!isAuthenticated) {
       Alert.alert("Đăng nhập", "Vui lòng đăng nhập để xóa sản phẩm");
       return;
@@ -291,17 +250,29 @@ const CartScreen: React.FC = () => {
       const userId = await getUserId();
       console.log("Removing cart item:", { userId, productId: item.productId });
 
-      // Gọi API xóa sản phẩm trực tiếp
-      await api.removeFromCart(userId, item.productId);
+      // Gọi API xóa sản phẩm (quantity=0)
+      const response = await api.removeFromCart(userId, item.productId);
 
-      // Thông báo xóa thành công
-      Alert.alert("Thành công", "Đã xóa sản phẩm khỏi giỏ hàng");
+      if (response && response.isSuccess) {
+        // Xóa sản phẩm khỏi state local
+        setCartItems((currentItems) =>
+          currentItems.filter(
+            (cartItem) => cartItem.productId !== item.productId
+          )
+        );
 
-      // Làm mới giỏ hàng
-      fetchCartItems();
+        // Thông báo xóa thành công - chỉ hiển thị khi được yêu cầu (xóa đơn lẻ)
+        if (showAlert) {
+          Alert.alert("Thành công", "Đã xóa sản phẩm khỏi giỏ hàng");
+        }
+      } else {
+        Alert.alert("Lỗi", "Không thể xóa sản phẩm. Vui lòng thử lại sau.");
+        fetchCartItems(); // Refresh lại giỏ hàng nếu thất bại
+      }
     } catch (error) {
       console.error("Error removing from cart:", error);
       Alert.alert("Lỗi", "Không thể xóa sản phẩm. Vui lòng thử lại sau.");
+      fetchCartItems(); // Refresh để đồng bộ lại với server
     } finally {
       setUpdating(false);
     }
@@ -387,34 +358,132 @@ const CartScreen: React.FC = () => {
     try {
       setUpdating(true);
 
-      // Sử dụng deliveryId đã chọn từ dropdown
-      const deliveryId = selectedDeliveryId;
-      console.log("Using selected deliveryId:", deliveryId);
+      // Sử dụng deliveryId cố định thay vì từ dropdown
+      const deliveryId = defaultDeliveryId;
+      console.log("Using fixed deliveryId:", deliveryId);
 
       // Lấy userId
       const userId = await getUserId();
 
-      // Tạo đơn hàng theo cấu trúc API
+      // Tạo đơn hàng theo cấu trúc API mới từ Swagger
       const orderData = {
         userId: userId,
         consigneeName: orderForm.consigneeName,
         deliverAddress: orderForm.deliverAddress,
         phoneNumber: orderForm.phoneNumber,
         deliveryId: deliveryId,
+        totalPrice: calculateTotal(),
       };
 
       console.log("Creating order with data:", orderData);
 
       // Gọi API tạo đơn hàng
-      const orderResponse = await api.createOrder(orderData);
-      console.log("Order response received:", orderResponse);
+      const response = await api.createOrder(orderData);
 
-      if (!orderResponse) {
+      console.log("Order response received:", response);
+
+      if (!response) {
         throw new Error("Không nhận được phản hồi từ server khi tạo đơn hàng");
       }
 
-      if (orderResponse.isSuccess === false) {
-        throw new Error(orderResponse.message || "Không thể tạo đơn hàng");
+      if (response.isSuccess === false) {
+        throw new Error(response.message || "Không thể tạo đơn hàng");
+      }
+
+      // Lấy orderId từ response
+      const orderId =
+        response.data?.orderId ||
+        (response.data && response.data.data && response.data.data.orderId);
+
+      if (!orderId) {
+        console.warn(
+          "Không tìm thấy orderId trong phản hồi API, không thể tạo chi tiết đơn hàng"
+        );
+      } else {
+        console.log("Tạo chi tiết đơn hàng với orderId:", orderId);
+
+        // Thêm delay trước khi tạo chi tiết đơn hàng để đảm bảo đơn hàng đã được lưu đầy đủ trên server
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+
+        // Tạo chi tiết đơn hàng cho từng sản phẩm trong giỏ hàng
+        try {
+          // Đảm bảo chúng ta có danh sách sản phẩm để tạo chi tiết
+          if (cartItems.length === 0) {
+            console.warn(
+              "Không có sản phẩm nào trong giỏ hàng để tạo chi tiết đơn hàng"
+            );
+          }
+
+          // Tạo orderDetails với cấu trúc $values
+          const orderDetails = {
+            $values: cartItems.map((item) => ({
+              orderId: orderId,
+              productId: item.productId,
+              productQuantity: item.quantity,
+            })),
+          };
+
+          console.log(
+            "Creating order details with structure:",
+            JSON.stringify(orderDetails, null, 2)
+          );
+
+          // Gọi API để tạo tất cả chi tiết đơn hàng
+          const detailResponse = await api.createOrderDetail({
+            orderId: orderId,
+            orderDetails: orderDetails,
+          });
+
+          if (detailResponse) {
+            console.log(
+              "Order details created successfully:",
+              JSON.stringify(detailResponse, null, 2)
+            );
+          } else {
+            console.error("No response received when creating order details");
+          }
+
+          // Cập nhật tổng tiền cho đơn hàng sau khi đã tạo tất cả chi tiết
+          const totalAmount = calculateTotal();
+          if (totalAmount > 0) {
+            try {
+              const updateResult = await api.updateOrderTotal(
+                orderId,
+                totalAmount
+              );
+              console.log(
+                "Updated order total:",
+                totalAmount,
+                "Result:",
+                JSON.stringify(updateResult, null, 2)
+              );
+            } catch (updateError) {
+              console.error("Error updating order total:", updateError);
+            }
+          }
+        } catch (detailError) {
+          console.error("Error creating order details:", detailError);
+        }
+      }
+
+      // Đơn hàng đã được tạo thành công, xóa toàn bộ giỏ hàng
+      console.log("Order created successfully, clearing cart items");
+
+      // Xóa từng sản phẩm trong giỏ hàng
+      try {
+        // Tạo một bản sao của mảng cartItems để tránh lỗi khi xóa
+        const itemsToRemove = [...cartItems];
+
+        // Lặp qua tất cả các mặt hàng trong giỏ hàng và xóa lần lượt
+        for (const item of itemsToRemove) {
+          await removeItem(item, false); // Xóa mà không hiển thị thông báo
+          console.log(`Removed item ${item.productId} from cart`);
+        }
+
+        console.log("All items removed from cart successfully");
+      } catch (clearCartError) {
+        console.error("Error clearing cart after order:", clearCartError);
+        // Không hiển thị lỗi vì đơn hàng đã được tạo thành công
       }
 
       // Đóng modal và hiển thị thông báo thành công
@@ -442,7 +511,7 @@ const CartScreen: React.FC = () => {
         phoneNumber: "",
       });
 
-      // Làm trống giỏ hàng
+      // Làm trống giỏ hàng trong state
       setCartItems([]);
     } catch (error: any) {
       console.error("Error creating order:", error);
@@ -453,31 +522,6 @@ const CartScreen: React.FC = () => {
     } finally {
       setUpdating(false);
     }
-  };
-
-  // Hiển thị thông tin chi tiết delivery
-  const renderDeliveryDetails = (deliveryId: string) => {
-    const selectedDelivery = deliveries.find(
-      (d) => d.deliveryId === deliveryId
-    );
-    if (!selectedDelivery) return null;
-
-    return (
-      <View style={styles.deliveryDetails}>
-        <Text style={styles.deliveryInfo}>
-          <Text style={{ fontWeight: "bold" }}>Tên đơn vị vận chuyển:</Text>{" "}
-          {selectedDelivery.supplierName}
-        </Text>
-        <Text style={styles.deliveryInfo}>
-          <Text style={{ fontWeight: "bold" }}>Số điện thoại:</Text>{" "}
-          {selectedDelivery.supplierPhone}
-        </Text>
-        <Text style={styles.deliveryInfo}>
-          <Text style={{ fontWeight: "bold" }}>Ngày giao hàng dự kiến:</Text>{" "}
-          {new Date(selectedDelivery.deliveryDate).toLocaleDateString("vi-VN")}
-        </Text>
-      </View>
-    );
   };
 
   // Render modal nhập thông tin đặt hàng
@@ -527,86 +571,6 @@ const CartScreen: React.FC = () => {
               keyboardType="phone-pad"
             />
 
-            <Text style={styles.sectionTitle}>Chọn đơn vị giao hàng</Text>
-
-            {loadingDeliveries ? (
-              <ActivityIndicator
-                size="small"
-                color="#f50"
-                style={{ marginVertical: 10 }}
-              />
-            ) : deliveries.length > 0 ? (
-              <>
-                <View style={styles.pickerContainer}>
-                  <Text style={styles.inputLabel}>Đơn vị giao hàng</Text>
-
-                  <TouchableOpacity
-                    style={styles.customPickerContainer}
-                    onPress={() => setIsPickerVisible(true)}
-                  >
-                    <Text style={styles.pickerText}>
-                      {selectedDeliveryId
-                        ? deliveries.find(
-                            (d) => d.deliveryId === selectedDeliveryId
-                          )?.supplierName || "Chọn đơn vị giao hàng"
-                        : "Chọn đơn vị giao hàng"}
-                    </Text>
-                    <Icon
-                      name="chevron-down"
-                      // type="font-awesome"
-                      size={16}
-                      color="#666"
-                    />
-                  </TouchableOpacity>
-
-                  <Modal
-                    visible={isPickerVisible}
-                    transparent={true}
-                    animationType="slide"
-                    onRequestClose={() => setIsPickerVisible(false)}
-                  >
-                    <TouchableOpacity
-                      style={styles.pickerModalOverlay}
-                      activeOpacity={1}
-                      onPress={() => setIsPickerVisible(false)}
-                    >
-                      <View style={styles.pickerModalContent}>
-                        <FlatList
-                          data={deliveries}
-                          keyExtractor={(item) => item.deliveryId}
-                          renderItem={({ item }) => (
-                            <TouchableOpacity
-                              style={styles.pickerItem}
-                              onPress={() => {
-                                setSelectedDeliveryId(item.deliveryId);
-                                setIsPickerVisible(false);
-                              }}
-                            >
-                              <Text
-                                style={[
-                                  styles.pickerItemText,
-                                  selectedDeliveryId === item.deliveryId &&
-                                    styles.pickerItemTextSelected,
-                                ]}
-                              >
-                                {item.supplierName}
-                              </Text>
-                            </TouchableOpacity>
-                          )}
-                        />
-                      </View>
-                    </TouchableOpacity>
-                  </Modal>
-
-                  {renderDeliveryDetails(selectedDeliveryId)}
-                </View>
-              </>
-            ) : (
-              <Text style={styles.noDeliveriesText}>
-                Không có đơn vị giao hàng nào. Vui lòng thử lại sau.
-              </Text>
-            )}
-
             <Text style={styles.sectionTitle}>Tóm tắt đơn hàng</Text>
 
             {cartItems.map((item) => (
@@ -644,7 +608,6 @@ const CartScreen: React.FC = () => {
                 buttonStyle={styles.confirmButton}
                 loading={updating}
                 onPress={confirmOrder}
-                disabled={deliveries.length === 0 || !selectedDeliveryId}
               />
             </View>
           </ScrollView>
@@ -945,59 +908,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     color: "#f50",
-  },
-  deliveryDetails: {
-    marginTop: 10,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: "#eee",
-    borderRadius: 5,
-  },
-  deliveryInfo: {
-    marginBottom: 5,
-  },
-  pickerContainer: {
-    marginBottom: 15,
-  },
-  customPickerContainer: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 5,
-    backgroundColor: "#f9f9f9",
-    marginBottom: 10,
-  },
-  pickerText: {
-    padding: 12,
-    fontSize: 16,
-    color: "#333",
-  },
-  pickerModalOverlay: {
-    flex: 1,
-    justifyContent: "center",
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-  pickerModalContent: {
-    backgroundColor: "white",
-    margin: 20,
-    borderRadius: 10,
-    maxHeight: "80%",
-  },
-  pickerItem: {
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-  },
-  pickerItemText: {
-    fontSize: 16,
-    color: "#333",
-  },
-  pickerItemTextSelected: {
-    color: "#f50",
-    fontWeight: "bold",
-  },
-  noDeliveriesText: {
-    color: "#999",
-    textAlign: "center",
   },
 });
 

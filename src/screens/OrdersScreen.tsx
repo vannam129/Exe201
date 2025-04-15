@@ -53,14 +53,129 @@ const OrdersScreen: React.FC = () => {
       const response = await api.getUserOrders(userId);
       console.log("Orders response:", response);
 
-      if (response && response.isSuccess && response.data) {
-        // Cấu trúc dữ liệu từ API: {isSuccess: true, data: [Order1, Order2, ...]}
-        const formattedOrders = Array.isArray(response.data)
-          ? response.data
-          : [];
+      // Thêm log chi tiết để xem cấu trúc dữ liệu
+      if (response && response.data) {
+        console.log("Raw order data structure:", JSON.stringify(response.data));
+      }
 
-        console.log("Formatted orders:", formattedOrders);
-        setOrders(formattedOrders);
+      if (response && response.isSuccess && response.data) {
+        // Kiểm tra định dạng dữ liệu API trả về
+        let ordersData = [];
+
+        // Xử lý dữ liệu nếu có cấu trúc $values
+        if (response.data.$values) {
+          ordersData = response.data.$values;
+        }
+        // Xử lý nếu là mảng trực tiếp
+        else if (Array.isArray(response.data)) {
+          ordersData = response.data;
+        }
+        // Xử lý nếu là mảng trong thuộc tính data
+        else if (response.data.data && Array.isArray(response.data.data)) {
+          ordersData = response.data.data;
+        }
+        // Xử lý nếu là cấu trúc $values bên trong data
+        else if (response.data.data && response.data.data.$values) {
+          ordersData = response.data.data.$values;
+        }
+
+        console.log("Formatted orders:", ordersData);
+
+        // Cho mỗi đơn hàng, gọi API chi tiết đơn hàng nếu orderDetails trống
+        for (const order of ordersData) {
+          // Chỉ gọi API tạo detail cho đơn hàng của chính người dùng hiện tại
+          if (order.userId === userId) {
+            if (
+              !order.orderDetails ||
+              (order.orderDetails.$values &&
+                order.orderDetails.$values.length === 0) ||
+              (Array.isArray(order.orderDetails) &&
+                order.orderDetails.length === 0)
+            ) {
+              console.log(
+                `Order ${order.orderId} has no details, fetching details...`
+              );
+
+              try {
+                // Gọi API để lấy thông tin chi tiết đơn hàng
+                // Sử dụng userId của đơn hàng, không phải userId của người dùng hiện tại
+                const orderDetailResponse = await api.createOrderDetail({
+                  orderId: order.orderId,
+                  orderDetails: {
+                    $values: [
+                      {
+                        orderId: order.orderId,
+                        productId: order.productId || "",
+                        productQuantity: order.quantity || 1,
+                      },
+                    ],
+                  },
+                });
+
+                console.log(
+                  `Order detail created for order ${order.orderId}:`,
+                  orderDetailResponse
+                );
+
+                // Cập nhật orderDetails cho đơn hàng nếu API trả về thành công
+                if (orderDetailResponse && orderDetailResponse.isSuccess) {
+                  // Cập nhật đơn hàng trong danh sách với chi tiết mới
+                  if (orderDetailResponse.data) {
+                    order.orderDetails = orderDetailResponse.data;
+                  }
+                }
+              } catch (detailError) {
+                console.error(
+                  `Error creating order detail for order ${order.orderId}:`,
+                  detailError
+                );
+                // Tiếp tục xử lý các đơn hàng khác ngay cả khi có lỗi
+              }
+            }
+          }
+        }
+
+        // Thêm sau phần xử lý chi tiết đơn hàng, trước khi setOrders
+        // Cập nhật totalPrice cho những đơn hàng có chi tiết nhưng chưa có tổng tiền
+        for (const order of ordersData) {
+          // Kiểm tra nhiều định dạng totalPrice khác nhau
+          if (
+            !order.totalPrice ||
+            order.totalPrice === 0 ||
+            (typeof order.totalPrice === "string" &&
+              parseFloat(order.totalPrice) === 0)
+          ) {
+            // Tính tổng tiền từ orderDetails
+            const calculatedTotal = calculateOrderTotal(order);
+
+            if (calculatedTotal > 0) {
+              console.log(
+                `Updated calculated total for order ${order.orderId}: ${calculatedTotal}`
+              );
+              // Cập nhật totalPrice
+              order.totalPrice = calculatedTotal;
+
+              // Cập nhật totalPrice trong orderDetails nếu có
+              if (order.orderDetails) {
+                try {
+                  // Gọi API để cập nhật totalPrice cho đơn hàng trên server
+                  await api.updateOrderTotal(order.orderId, calculatedTotal);
+                  console.log(
+                    `Updated order total on server for order ${order.orderId}`
+                  );
+                } catch (updateError) {
+                  console.error(
+                    `Failed to update order total on server:`,
+                    updateError
+                  );
+                  // Tiếp tục xử lý dù có lỗi cập nhật server
+                }
+              }
+            }
+          }
+        }
+
+        setOrders(ordersData);
       } else {
         console.warn(
           "Failed to fetch orders:",
@@ -109,56 +224,112 @@ const OrdersScreen: React.FC = () => {
     });
   };
 
-  const renderItem = ({ item }: { item: OrderResponse }) => (
-    <TouchableOpacity
-      style={styles.orderItem}
-      onPress={() =>
-        navigation.navigate("OrderDetails", { orderId: item.orderId })
-      }
-    >
-      <View style={styles.orderHeader}>
-        <Text style={styles.orderId}>
-          Đơn hàng #{item.orderId.substr(0, 8)}
-        </Text>
-        <View
-          style={[
-            styles.statusBadge,
-            {
-              backgroundColor:
-                item.orderStatus === "Delivered"
-                  ? "#4CAF50"
-                  : item.orderStatus === "Cancelled"
-                  ? "#F44336"
-                  : "#FFC107",
-            },
-          ]}
-        >
-          <Text style={styles.statusText}>
-            {formatOrderStatus(item.orderStatus)}
-          </Text>
-        </View>
-      </View>
+  const calculateOrderTotal = (item: OrderResponse) => {
+    // Nếu đã có totalPrice từ server và lớn hơn 0, sử dụng nó
+    const numericTotalPrice =
+      typeof item.totalPrice === "string"
+        ? parseFloat(item.totalPrice)
+        : typeof item.totalPrice === "number"
+        ? item.totalPrice
+        : 0;
 
-      <View style={styles.orderInfo}>
-        <Text style={styles.orderDate}>
-          Ngày đặt: {formatDate(item.orderDate)}
-        </Text>
+    if (numericTotalPrice > 0) {
+      return numericTotalPrice;
+    }
+
+    // Tính tổng từ orderDetails nếu có
+    if (
+      item.orderDetails &&
+      typeof item.orderDetails === "object" &&
+      "$values" in item.orderDetails
+    ) {
+      const details = item.orderDetails.$values;
+      if (Array.isArray(details)) {
+        return details.reduce((total: number, detail: any) => {
+          const quantity = detail.productQuantity || 0;
+          const price = detail.price || 0;
+          return total + price * quantity;
+        }, 0);
+      }
+    }
+
+    return 0;
+  };
+
+  const renderItem = ({ item }: { item: OrderResponse }) => {
+    // Đếm số lượng sản phẩm trong đơn hàng
+    const productCount =
+      item.orderDetails &&
+      typeof item.orderDetails === "object" &&
+      "$values" in item.orderDetails &&
+      Array.isArray(item.orderDetails.$values)
+        ? item.orderDetails.$values.length
+        : 0;
+
+    const totalPrice = calculateOrderTotal(item);
+    const status = item.orderStatus || item.status || "Pending";
+
+    return (
+      <TouchableOpacity
+        style={styles.orderItem}
+        onPress={() =>
+          navigation.navigate("OrderDetails", { orderId: item.orderId })
+        }
+      >
+        <View style={styles.orderHeader}>
+          <Text style={styles.orderId}>
+            Đơn hàng #{item.orderId.substr(0, 8)}
+          </Text>
+          <View
+            style={[
+              styles.statusBadge,
+              {
+                backgroundColor:
+                  status === "Delivered"
+                    ? "#4CAF50"
+                    : status === "Cancelled"
+                    ? "#F44336"
+                    : "#FFC107",
+              },
+            ]}
+          >
+            <Text style={styles.statusText}>{formatOrderStatus(status)}</Text>
+          </View>
+        </View>
+
+        <View style={styles.orderInfo}>
+          <Text style={styles.orderDate}>
+            Ngày đặt: {formatDate(item.orderDate)}
+          </Text>
+          <Text style={styles.productCount}>{productCount} sản phẩm</Text>
+        </View>
+
         <Text style={styles.orderTotal}>
           Tổng tiền:{" "}
-          {item.totalAmount.toLocaleString("vi-VN", {
-            style: "currency",
-            currency: "VND",
-          })}
+          {totalPrice > 0
+            ? totalPrice.toLocaleString("vi-VN", {
+                style: "currency",
+                currency: "VND",
+              })
+            : "Đang cập nhật..."}
         </Text>
-      </View>
 
-      <View style={styles.orderAddress}>
-        <Text numberOfLines={1} ellipsizeMode="tail">
-          Giao hàng đến: {item.deliverAddress}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
+        <View style={styles.orderAddress}>
+          <Text style={styles.consigneeName}>
+            Người nhận: {item.consigneeName}
+          </Text>
+          <Text
+            style={styles.deliveryAddress}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            Địa chỉ: {item.deliverAddress}
+          </Text>
+          <Text style={styles.phoneNumber}>SĐT: {item.phoneNumber}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   if (loading) {
     return (
@@ -297,19 +468,36 @@ const styles = StyleSheet.create({
   orderInfo: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 10,
   },
   orderDate: {
+    fontSize: 14,
+    color: "#666",
+  },
+  productCount: {
+    fontSize: 14,
     color: "#666",
   },
   orderTotal: {
+    fontSize: 16,
     fontWeight: "bold",
-    color: "#f50",
+    marginTop: 10,
   },
   orderAddress: {
-    borderTopWidth: 1,
-    borderTopColor: "#eee",
-    paddingTop: 10,
+    marginTop: 10,
+  },
+  consigneeName: {
+    fontSize: 14,
+    color: "#333",
+    marginBottom: 4,
+  },
+  deliveryAddress: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 4,
+  },
+  phoneNumber: {
+    fontSize: 14,
+    color: "#666",
   },
 });
 

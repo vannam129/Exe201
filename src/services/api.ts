@@ -119,120 +119,43 @@ export const api = {
   // Auth
   login: async (email: string, password: string) => {
     try {
-      console.log('Sending login request for:', email);
+      console.log('API: Đang gửi yêu cầu đăng nhập cho:', email);
       const response = await getClient().post('/api/Auth/login', { email, password });
-      console.log('Login API response:', response);
+      console.log('API: Nhận được response login, status:', response.status);
       
-      // Kiểm tra cấu trúc dữ liệu phản hồi
+      // Log raw response để debug
+      console.log('API: Raw login response:', JSON.stringify(response.data, null, 2));
+      
+      // Cấu trúc thực tế từ API:
+      // {
+      //   "id": "1",
+      //   "token": "eyJhbGciOiJIUzI1...",
+      //   "userId": "e778629f-c8c3-4f18-8e68-859d86c3495f",
+      //   "role": "customer",
+      //   "fullName": "Ngoc Phu" 
+      // }
+      
       if (response && response.data) {
-        // Log raw response để debug
-        console.log('Raw login response data:', JSON.stringify(response.data));
-        
-        // Trường hợp API chỉ trả về token - phổ biến nhất
-        if (response.data.token && typeof response.data.token === 'string') {
-          console.log('Login response contains token only, extracting user info from token');
-          
-          // Giải mã JWT token để lấy userId từ token
-          try {
-            const tokenParts = response.data.token.split('.');
-            if (tokenParts.length === 3) {
-              const base64Payload = tokenParts[1].replace(/-/g, '+').replace(/_/g, '/');
-              
-              // Hàm decode base64 cho React Native không sử dụng Buffer
-              const decodeBase64 = (str: string): string => {
-                const base64chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
-                let output = '';
-                str = String(str).replace(/=+$/, '');
-                
-                if (str.length % 4 === 1) {
-                  throw new Error('Invalid base64 string');
-                }
-                
-                for (
-                  let bc = 0, bs = 0, buffer, i = 0;
-                  (buffer = str.charAt(i++));
-                  ~buffer && ((bs = bc % 4 ? bs * 64 + buffer : buffer), bc++ % 4)
-                    ? (output += String.fromCharCode(255 & (bs >> ((-2 * bc) & 6))))
-                    : 0
-                ) {
-                  buffer = base64chars.indexOf(buffer);
-                }
-                
-                return output;
-              };
-              
-              try {
-                const jsonString = decodeBase64(base64Payload);
-                const payload = JSON.parse(jsonString);
-                console.log('Decoded token payload:', payload);
-                
-                if (payload && payload.id) {
-                  return {
-                    data: {
-                      token: response.data.token,
-                      user: {
-                        id: payload.id,
-                        userId: payload.id,
-                        email: email,
-                        username: email.split('@')[0],
-                        fullName: '',
-                        phone: '',
-                      }
-                    }
-                  };
-                }
-              } catch (innerError) {
-                console.error('Error parsing token payload:', innerError);
-              }
+        // Lấy thông tin trực tiếp từ cấu trúc API thực tế
+        return {
+          data: {
+            token: response.data.token,
+            userId: response.data.userId,
+            role: response.data.role,
+            fullName: response.data.fullName,
+            user: {
+              id: response.data.userId,
+              userId: response.data.userId,
+              email: email,
+              username: response.data.fullName || email.split('@')[0],
+              fullName: response.data.fullName || '',
+              role: response.data.role || 'customer'
             }
-          } catch (tokenError) {
-            console.error('Error decoding token:', tokenError);
           }
-          
-          // Fallback nếu không giải mã được token
-          return {
-            data: {
-              token: response.data.token,
-              user: {
-                id: 'unknown',
-                userId: 'unknown',
-                email: email,
-                username: email.split('@')[0],
-                fullName: '',
-                phone: '',
-              }
-            }
-          };
-        }
-        
-        // Các trường hợp API khác
-        // Trường hợp API trả về cấu trúc {isSuccess, data, message}
-        if (response.data.isSuccess && response.data.data) {
-          // Convert API response to expected format
-          const userData = response.data.data;
-          return {
-            data: {
-              token: userData.token || userData.accessToken || '',
-              user: {
-                id: userData.id || userData.userId || 0,
-                email: userData.email || email,
-                username: userData.username || userData.fullName || email.split('@')[0],
-                fullName: userData.fullName || userData.username || '',
-                phone: userData.phone || '',
-              }
-            }
-          };
-        }
-        // Trường hợp API trả về trực tiếp {token, user}
-        else if (response.data.token && response.data.user) {
-          return { data: response.data };
-        }
-        // Trường hợp lỗi được trả về từ API
-        else if (response.data.message) {
-          throw new Error(response.data.message);
-        }
+        };
       }
       
+      // Lỗi: Không có dữ liệu response
       throw new Error('Invalid response format from server');
     } catch (error) {
       console.error('Login error in API service:', error);
@@ -322,8 +245,18 @@ export const api = {
       const response = await apiClientForCart.get(`/api/Cart/${userId}`);
       console.log('Get cart raw response:', response.data);
       
+      // Lưu lại cartId để sử dụng cho các API khác
+      let cartId = '';
+      
       // Xử lý cấu trúc mới nhất: {$id, isSuccess, message, data: {$id, cartId, userId, products: {$id, $values: []}}}
       if (response.data && response.data.isSuccess && response.data.data) {
+        // Lấy cartId từ response
+        cartId = response.data.data.cartId;
+        
+        // Lưu cartId cho các hoạt động khác
+        await AsyncStorage.setItem(`cart_id_${userId}`, cartId);
+        console.log('Saved cartId to AsyncStorage:', cartId);
+        
         // Kiểm tra xem products có phải dạng mới với $values
         if (response.data.data.products && response.data.data.products.$values) {
           console.log('Detected products with $values structure');
@@ -333,7 +266,7 @@ export const api = {
             isSuccess: response.data.isSuccess,
             message: response.data.message,
             data: {
-              cartId: response.data.data.cartId,
+              cartId: cartId,
               userId: response.data.data.userId,
               products: response.data.data.products.$values
             }
@@ -358,7 +291,7 @@ export const api = {
       return { 
         isSuccess: true, 
         data: { 
-          cartId: 'unknown',
+          cartId: cartId || 'unknown',
           userId: userId,
           products: Array.isArray(response.data) ? response.data : []
         } 
@@ -373,11 +306,29 @@ export const api = {
     }
   },
 
+  // Hàm để lấy cartId từ AsyncStorage
+  getCartId: async (userId: string) => {
+    try {
+      const cartId = await AsyncStorage.getItem(`cart_id_${userId}`);
+      return cartId;
+    } catch (error) {
+      console.error('Error getting cartId:', error);
+      return null;
+    }
+  },
+
+  // Thêm sản phẩm vào giỏ hàng
   addToCart: async (userId: string, productId: string, quantity: number = 1) => {
     try {
       // Kiểm tra số lượng phải lớn hơn 0
       if (!quantity || quantity <= 0) {
         throw new Error("Số lượng sản phẩm phải lớn hơn 0");
+      }
+
+      // Kiểm tra nếu userId là "unknown", thay thế bằng một GUID cố định
+      if (userId === "unknown") {
+        console.log("userId là 'unknown', thay thế bằng GUID cố định");
+        userId = "e778629f-c8c3-4f18-8e68-859d86c3495f"; // GUID cố định cho user ngocphuthbd@gmail.com
       }
 
       // Kiểm tra nếu userId và productId không phải GUID hợp lệ
@@ -420,6 +371,10 @@ export const api = {
         const response = await apiClient.post('/api/Cart/add', body);
         
         console.log("Add to cart successful response:", response.data);
+        
+        // Sau khi thêm thành công, refresh lại giỏ hàng để lấy cartId mới nếu cần
+        await api.getCart(userId);
+        
         return response.data;
       } catch (error: any) {
         console.error("Add to cart error:", error);
@@ -452,10 +407,31 @@ export const api = {
       // Lấy token xác thực
       const token = await AsyncStorage.getItem('auth_token');
       
-      // Kiểm tra số lượng phải lớn hơn 0
-      if (!quantity || quantity <= 0) {
-        throw new Error("Số lượng sản phẩm phải lớn hơn 0");
+      // Kiểm tra số lượng - nếu nhỏ hơn hoặc bằng 0 thì gọi hàm removeFromCart thay vì updateCartItem
+      if (quantity <= 0) {
+        console.log('Quantity <= 0, removing item instead of updating');
+        return api.removeFromCart(userId, productId);
       }
+      
+      // Lấy cartId từ AsyncStorage
+      let cartId = await AsyncStorage.getItem(`cart_id_${userId}`);
+      
+      // Nếu không có cartId, gọi API để lấy thông tin giỏ hàng
+      if (!cartId) {
+        console.log('CartId not found in AsyncStorage, fetching from API...');
+        const cartResponse = await api.getCart(userId);
+        if (cartResponse && cartResponse.isSuccess && cartResponse.data) {
+          cartId = cartResponse.data.cartId;
+        }
+      }
+      
+      // Nếu vẫn không có cartId, sử dụng giá trị mặc định
+      if (!cartId) {
+        console.warn('CartId not available, using default value');
+        cartId = "a18993c1-823a-4ac8-be6a-c124b551fba0";
+      }
+      
+      console.log('Using cartId:', cartId);
       
       // Tạo instance API client
       const apiClient = axios.create({
@@ -469,7 +445,7 @@ export const api = {
       
       // Cấu trúc body theo Swagger
       const updateBody = {
-        cartId: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        cartId: cartId,
         productId: productId,
         quantity: quantity
       };
@@ -514,6 +490,26 @@ export const api = {
         throw new Error("Product ID không được để trống");
       }
       
+      // Lấy cartId từ AsyncStorage
+      let cartId = await AsyncStorage.getItem(`cart_id_${userId}`);
+      
+      // Nếu không có cartId, gọi API để lấy thông tin giỏ hàng
+      if (!cartId) {
+        console.log('CartId not found in AsyncStorage, fetching from API...');
+        const cartResponse = await api.getCart(userId);
+        if (cartResponse && cartResponse.isSuccess && cartResponse.data) {
+          cartId = cartResponse.data.cartId;
+        }
+      }
+      
+      // Nếu vẫn không có cartId, sử dụng giá trị mặc định
+      if (!cartId) {
+        console.warn('CartId not available, using default value');
+        cartId = "a18993c1-823a-4ac8-be6a-c124b551fba0";
+      }
+      
+      console.log('Using cartId for removal:', cartId);
+      
       // Tạo instance API client
       const apiClient = axios.create({
         baseURL: API_URL,
@@ -526,7 +522,7 @@ export const api = {
       
       // Cấu trúc body theo Swagger, với quantity = 0 để xoá
       const removeBody = {
-        cartId: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        cartId: cartId,
         productId: productId,
         quantity: 0
       };
@@ -693,113 +689,65 @@ export const api = {
     }
   },
   
-  // Tạo đơn hàng
+  // API tạo đơn hàng
   createOrder: async (orderData: {
     userId: string;
     consigneeName: string;
     deliverAddress: string;
     phoneNumber: string;
     deliveryId: string;
+    totalPrice?: number;
   }) => {
     try {
-      console.log('Creating order:', orderData);
-      const orderUrl = `${API_URL}/api/Order`;
-      console.log('API URL:', orderUrl);
+      // Kiểm tra các trường bắt buộc
+      if (!orderData.userId || !orderData.consigneeName || !orderData.deliverAddress || 
+          !orderData.phoneNumber || !orderData.deliveryId) {
+        throw new Error("Vui lòng điền đầy đủ thông tin đơn hàng");
+      }
+      
+      // Đảm bảo totalPrice luôn có giá trị
+      const orderDataWithTotal = {
+        ...orderData,
+        // Nếu totalPrice là 0, gán giá trị 1 để tránh server hiểu nhầm
+        totalPrice: orderData.totalPrice || orderData.totalPrice === 0 ? orderData.totalPrice : 1
+      };
+      
+      console.log("Creating order with data:", orderDataWithTotal);
       
       // Lấy token xác thực
       const token = await AsyncStorage.getItem('auth_token');
-      console.log('Auth token:', token ? 'Token exists' : 'No token');
       
-      // Gọi API tạo đơn hàng trực tiếp với body đúng chuẩn Swagger
-      console.log('Sending order request with data:', orderData);
-      const response = await axios({
-        method: 'post',
-        url: orderUrl,
-        data: orderData,
+      // Tạo instance API client
+      const apiClient = axios.create({
+        baseURL: API_URL,
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
-        timeout: 10000
+        }
       });
       
-      console.log('Create order API response:', response.data);
+      // Gọi API tạo đơn hàng
+      const response = await apiClient.post('/api/Order', orderDataWithTotal);
       
-      // Kiểm tra phản hồi từ API
-      if (!response.data) {
-        throw new Error('Không nhận được phản hồi từ server');
-      }
+      console.log('Order creation response:', response.data);
       
-      if (response.data.isSuccess === false) {
+      if (response.data && response.data.isSuccess === false) {
         throw new Error(response.data.message || 'Không thể tạo đơn hàng');
-      }
-      
-      // Nếu tạo đơn hàng thành công, tạo chi tiết đơn hàng
-      if (response.data.isSuccess && response.data.data && response.data.data.orderId) {
-        const orderId = response.data.data.orderId;
-        console.log('Order created successfully with ID:', orderId);
-        
-        try {
-          // Hàm nội bộ để tạo chi tiết đơn hàng
-          const createOrderDetailFunc = async (userId: string, orderId: string) => {
-            console.log('Creating order detail for orderId:', orderId);
-            const orderDetailUrl = `${API_URL}/api/Order/detail?userId=${userId}`;
-            console.log('API URL:', orderDetailUrl);
-            
-            // Cấu trúc body theo Swagger
-            const orderDetailBody = {
-              orderId: orderId
-            };
-            
-            console.log('Order detail request body:', orderDetailBody);
-            
-            // Gọi API POST /api/Order/detail
-            const detailResponse = await axios({
-              method: 'post',
-              url: orderDetailUrl,
-              data: orderDetailBody,
-              headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                ...(token ? { Authorization: `Bearer ${token}` } : {})
-              },
-              timeout: 10000
-            });
-            
-            console.log('Create order detail API response:', detailResponse.data);
-            return detailResponse.data;
-          };
-          
-          // Gọi hàm nội bộ tạo chi tiết đơn hàng
-          const orderDetailResponse = await createOrderDetailFunc(orderData.userId, orderId);
-          console.log('Order detail response:', orderDetailResponse);
-          
-          // Trả về kết quả từ API tạo đơn hàng
-          return response.data;
-        } catch (detailError) {
-          console.error('Error creating order detail:', detailError);
-          // Vẫn trả về kết quả từ API tạo đơn hàng, ngay cả khi tạo chi tiết lỗi
-          return response.data;
-        }
       }
       
       return response.data;
     } catch (error: any) {
       console.error('Error creating order:', error);
       if (error.response) {
-        console.error('API error response status:', error.response.status);
-        console.error('API error response data:', error.response.data);
-        
+        console.error('API error response:', error.response.data);
         if (error.response.data && error.response.data.errors) {
           const errorMessages = Object.values(error.response.data.errors).flat();
-          throw new Error(`API validation errors: ${errorMessages.join(', ')}`);
+          throw new Error(`Lỗi: ${errorMessages.join(', ')}`);
         }
-        
-        throw new Error(error.response.data?.message || `Error ${error.response.status}`);
+        throw new Error(error.response.data?.message || `Lỗi ${error.response.status}`);
       }
-      
-      throw new Error(error.message || 'Không thể tạo đơn hàng');
+      throw error;
     }
   },
   
@@ -1070,8 +1018,41 @@ export const api = {
     }
   },
   
-  updateOrderStatus: (orderId: number, status: string) => 
-    getClient().put(`/api/orders/${orderId}/status`, { status }),
+  updateOrderTotal: async (orderId: string, totalPrice: number) => {
+    try {
+      console.log('Updating order total for orderId:', orderId, 'new total:', totalPrice);
+      
+      // Lấy token xác thực
+      const token = await AsyncStorage.getItem('auth_token');
+      
+      // Tạo instance API client
+      const apiClient = axios.create({
+        baseURL: API_URL,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+      
+      // Gọi API PUT để cập nhật tổng tiền
+      const response = await apiClient.put(`/api/Order/${orderId}/total`, { totalPrice });
+      console.log('Update order total response:', response.data);
+      
+      if (response.data && response.data.isSuccess === false) {
+        throw new Error(response.data.message || 'Không thể cập nhật tổng tiền đơn hàng');
+      }
+      
+      return response.data;
+    } catch (error: any) {
+      console.error('Error updating order total:', error);
+      if (error.response && error.response.data) {
+        console.error('API error response:', error.response.data);
+        throw new Error(error.response.data.message || 'Lỗi từ server');
+      }
+      throw error;
+    }
+  },
 
   // Lấy danh sách thông tin giao hàng
   getDeliveries: async () => {
@@ -1171,6 +1152,246 @@ export const api = {
       return null;
     }
   },
+
+  // Thêm hàm createOrderDetail vào file api.ts
+  createOrderDetail: async (data: OrderDetailRequest) => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (!token) {
+        throw new Error("No token found");
+      }
+
+      const response = await apiClient.post("/api/OrderDetails", data, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error("Error creating order detail:", error);
+      throw error;
+    }
+  },
+
+  // Add new API function to fetch all orders for admin
+  fetchAllOrders: async () => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      const apiClient = axios.create({
+        baseURL: API_URL,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const response = await apiClient.get('/api/orders');
+      
+      if (response.status !== 200) {
+        throw new Error('Failed to fetch orders');
+      }
+
+      // Handle different response structures
+      if (response.data && response.data.$values) {
+        return response.data.$values;
+      } else if (Array.isArray(response.data)) {
+        return response.data;
+      } else {
+        console.log('Unexpected response format:', response.data);
+        return [];
+      }
+    } catch (error) {
+      console.error('Error fetching all orders:', error);
+      throw error;
+    }
+  },
+
+  // Add new API function to update order status for admin
+  updateOrderStatus: async (orderId: string, newStatus: string) => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      const apiClient = axios.create({
+        baseURL: API_URL,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      // Sửa endpoint và body format theo Swagger
+      const response = await apiClient.put('/api/Order', { 
+        orderId: orderId,
+        status: newStatus 
+      });
+      
+      console.log('Update order status response:', response.data);
+
+      if (response.data && response.data.isSuccess === false) {
+        throw new Error(response.data.message || 'Failed to update order status');
+      }
+
+      return response.data;
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      throw error;
+    }
+  },
+
+  // Thêm sản phẩm mới
+  createProduct: async (productData: {
+    name: string;
+    price: number;
+    description: string;
+    imageUrl?: string;
+    categoryId: string;
+    status?: boolean;
+  }) => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      const apiClient = axios.create({
+        baseURL: API_URL,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      // Chuẩn bị dữ liệu theo định dạng API yêu cầu
+      const requestData = {
+        productName: productData.name,
+        price: productData.price,
+        description: productData.description,
+        imageURL: productData.imageUrl || "",
+        categoryId: productData.categoryId,
+        status: productData.status !== undefined ? productData.status : true
+      };
+
+      console.log('Creating product with data:', requestData);
+      const response = await apiClient.post('/api/Product', requestData);
+      
+      if (response.status !== 200 && response.status !== 201) {
+        throw new Error('Failed to create product');
+      }
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error creating product:', error);
+      if (error.response) {
+        console.error('API error status:', error.response.status);
+        console.error('API error data:', error.response.data);
+      }
+      throw error;
+    }
+  },
+
+  // Cập nhật sản phẩm
+  updateProduct: async (productId: string, productData: {
+    name: string;
+    price: number;
+    description: string;
+    imageUrl?: string;
+    categoryId: string;
+    status?: boolean;
+  }) => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      const apiClient = axios.create({
+        baseURL: API_URL,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      // Chuẩn bị dữ liệu theo định dạng API yêu cầu
+      const requestData = {
+        productName: productData.name,
+        price: productData.price,
+        description: productData.description,
+        imageURL: productData.imageUrl || "",
+        categoryId: productData.categoryId,
+        status: productData.status !== undefined ? productData.status : true
+      };
+
+      console.log(`Updating product ${productId} with data:`, requestData);
+      const response = await apiClient.put(`/api/Product/${productId}`, requestData);
+      
+      if (response.status !== 200) {
+        throw new Error('Failed to update product');
+      }
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error updating product:', error);
+      if (error.response) {
+        console.error('API error status:', error.response.status);
+        console.error('API error data:', error.response.data);
+      }
+      throw error;
+    }
+  },
+
+  // Xóa sản phẩm
+  deleteProduct: async (productId: string) => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      const apiClient = axios.create({
+        baseURL: API_URL,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      console.log(`Deleting product ${productId}`);
+      const response = await apiClient.delete(`/api/Product/${productId}`);
+      
+      if (response.status !== 200 && response.status !== 204) {
+        throw new Error('Failed to delete product');
+      }
+
+      return true;
+    } catch (error: any) {
+      console.error('Error deleting product:', error);
+      if (error.response) {
+        console.error('API error status:', error.response.status);
+        console.error('API error data:', error.response.data);
+      }
+      throw error;
+    }
+  },
 };
+
+interface OrderDetailRequest {
+  orderId: string;
+  orderDetails: {
+    $values: Array<{
+      orderId: string;
+      productId: string;
+      productQuantity: number;
+    }>;
+  };
+}
 
 export default api; 
