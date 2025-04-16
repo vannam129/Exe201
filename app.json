@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "FoodOrderApp",
+    "name": "Balama",
     "slug": "FoodOrderApp",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -19,10 +19,16 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.vannam129001.FoodOrderApp"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "030c03e8-3c99-4fd3-a355-d4d8676c1e15"
+      }
     }
   }
 }

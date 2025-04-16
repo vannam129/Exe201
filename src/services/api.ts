@@ -126,6 +126,17 @@ export const api = {
       // Log raw response để debug
       console.log('API: Raw login response:', JSON.stringify(response.data, null, 2));
       
+      // Kiểm tra email đã được xác thực chưa (dựa vào phản hồi từ server)
+      if (response.data && response.data.emailConfirmed === false) {
+        // Tài khoản tồn tại nhưng email chưa xác thực
+        const error = new Error('Email chưa được xác thực');
+        error.name = 'EmailNotConfirmedError';
+        
+        // Thêm dữ liệu email để có thể chuyển hướng đến màn hình xác thực
+        (error as any).email = email;
+        throw error;
+      }
+      
       // Cấu trúc thực tế từ API:
       // {
       //   "id": "1",
@@ -166,7 +177,13 @@ export const api = {
   register: async (data: { fullName: string; email: string; password: string; phone: string }) => {
     try {
       const response = await getClient().post('/api/Auth/register', data);
-      return response.data;
+      
+      // Trả về response mà không tự động đăng nhập
+      return {
+        success: true,
+        message: 'Đăng ký thành công! Vui lòng kiểm tra email để xác thực tài khoản.',
+        data: response.data
+      };
     } catch (error) {
       console.error('Register error in API service:', error);
       throw error;
@@ -762,8 +779,21 @@ export const api = {
       console.log('Products API response:', response);
       
       if (response && response.data) {
+        // Kiểm tra cấu trúc response với format mới
+        if (response.data.isSuccess && response.data.data && response.data.data.$values) {
+          // Cấu trúc: {$id, isSuccess, message, data: {$id, $values: [...]}}
+          return response.data.data.$values.map((item: any) => ({
+            id: item.productId || Math.floor(Math.random() * 1000),
+            name: item.productName,
+            description: item.description || '',
+            price: parseFloat(item.price || 0),
+            imageUrl: item.imageURL,
+            category: item.categoryName || '',
+            categoryId: item.categoryId
+          }));
+        }
         // Trường hợp API trả về cấu trúc có $id và $values
-        if (response.data.$id && response.data.$values) {
+        else if (response.data.$id && response.data.$values) {
           console.log('Detected new API format with $values');
           return response.data.$values.map((item: any) => ({
             id: item.productId || Math.floor(Math.random() * 1000),
@@ -813,8 +843,19 @@ export const api = {
       console.log(`Products for categoryId ${categoryId} API response:`, response);
       
       if (response && response.data) {
-        // Kiểm tra xem response có cấu trúc đúng không
-        if (Array.isArray(response.data)) {
+        // Kiểm tra cấu trúc response với format mới
+        if (response.data.isSuccess && response.data.data && response.data.data.$values) {
+          // Cấu trúc: {$id, isSuccess, message, data: {$id, $values: [...]}}
+          return response.data.data.$values.map((item: any) => ({
+            id: item.productId || Math.floor(Math.random() * 1000),
+            name: item.productName,
+            description: item.description || '',
+            price: parseFloat(item.price || 0),
+            imageUrl: item.imageURL, // Lưu ý: API trả về imageURL (chữ hoa) thay vì imageUrl
+            category: item.categoryName || '',
+            categoryId: item.categoryId
+          }));
+        } else if (Array.isArray(response.data)) {
           // API trả về trực tiếp là mảng các product
           return response.data.map((item: any) => ({
             id: item.productId || Math.floor(Math.random() * 1000),
@@ -1349,6 +1390,44 @@ export const api = {
         console.error('API error data:', error.response.data);
       }
       throw error;
+    }
+  },
+
+  // Xóa đơn hàng
+  deleteOrder: async (orderId: string) => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      const apiClient = axios.create({
+        baseURL: API_URL,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      console.log(`Deleting order ${orderId}`);
+      const response = await apiClient.delete(`/api/Order/${orderId}`);
+      
+      if (response.status !== 200 && response.status !== 204) {
+        throw new Error('Failed to delete order');
+      }
+
+      return {
+        isSuccess: true,
+        message: 'Đơn hàng đã được xóa thành công'
+      };
+    } catch (error: any) {
+      console.error('Error deleting order:', error);
+      if (error.response) {
+        console.error('API error status:', error.response.status);
+        console.error('API error data:', error.response.data);
+      }
+      
+      throw new Error(error.response?.data?.message || 'Không thể xóa đơn hàng');
     }
   },
 };

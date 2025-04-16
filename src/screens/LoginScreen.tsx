@@ -58,11 +58,68 @@ const LoginScreen = () => {
       // Xử lý lỗi chi tiết hơn
       let errorMsg = "Đăng nhập thất bại";
 
-      if (error.response) {
+      // Kiểm tra lỗi email chưa xác thực
+      if (error.name === "EmailNotConfirmedError") {
+        errorMsg = "Email chưa được xác thực";
+
+        // Hiển thị thông báo và hỏi người dùng có muốn đến trang xác thực không
+        Alert.alert(
+          "Email chưa xác thực",
+          "Tài khoản của bạn chưa được xác thực email. Bạn có muốn xác thực ngay bây giờ không?",
+          [
+            {
+              text: "Hủy",
+              style: "cancel",
+            },
+            {
+              text: "Xác thực ngay",
+              onPress: () => {
+                // Chuyển hướng đến màn hình xác thực email
+                navigation.navigate("EmailConfirm", {
+                  email: error.email || email,
+                });
+              },
+            },
+          ]
+        );
+
+        setLoading(false);
+        return;
+      } else if (error.response) {
         // Lỗi từ API
         console.log("LoginScreen: Lỗi API response:", error.response.data);
         if (error.response.data && error.response.data.message) {
           errorMsg = error.response.data.message;
+
+          // Kiểm tra nếu lỗi liên quan đến email chưa xác thực
+          if (
+            errorMsg.toLowerCase().includes("email") &&
+            (errorMsg.toLowerCase().includes("confirm") ||
+              errorMsg.toLowerCase().includes("verify") ||
+              errorMsg.toLowerCase().includes("validate"))
+          ) {
+            // Hiển thị thông báo và hỏi người dùng có muốn đến trang xác thực không
+            Alert.alert(
+              "Email chưa xác thực",
+              "Tài khoản của bạn chưa được xác thực email. Bạn có muốn xác thực ngay bây giờ không?",
+              [
+                {
+                  text: "Hủy",
+                  style: "cancel",
+                },
+                {
+                  text: "Xác thực ngay",
+                  onPress: () => {
+                    // Chuyển hướng đến màn hình xác thực email
+                    navigation.navigate("EmailConfirm", { email });
+                  },
+                },
+              ]
+            );
+
+            setLoading(false);
+            return;
+          }
         } else if (error.response.status === 401) {
           errorMsg = "Email hoặc mật khẩu không đúng";
         } else if (error.response.status === 404) {

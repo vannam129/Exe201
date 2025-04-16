@@ -64,7 +64,8 @@ const OrderManagerScreen = () => {
           ordersData = response.data.$values;
         }
 
-        setOrders(ordersData);
+        // Sắp xếp đơn hàng theo thứ tự ưu tiên
+        setOrders(sortOrders(ordersData));
       } catch (fetchError) {
         console.error("Error using fetchAllOrders:", fetchError);
 
@@ -92,7 +93,8 @@ const OrderManagerScreen = () => {
               ordersData = response.data.data.$values;
             }
 
-            setOrders(ordersData);
+            // Sắp xếp đơn hàng theo thứ tự ưu tiên
+            setOrders(sortOrders(ordersData));
           } else {
             console.warn(
               "Failed to fetch orders:",
@@ -114,6 +116,44 @@ const OrderManagerScreen = () => {
     }
   };
 
+  // Hàm sắp xếp đơn hàng theo thứ tự ưu tiên: Pending -> On delivery -> Done -> Cancelled
+  const sortOrders = (orders: OrderResponse[]) => {
+    return [...orders].sort((a, b) => {
+      const statusA = a.orderStatus || a.status || "";
+      const statusB = b.orderStatus || b.status || "";
+
+      // Hàm để lấy điểm ưu tiên cho từng trạng thái
+      const getPriorityScore = (status: string) => {
+        switch (status) {
+          case "Pending":
+            return 0; // Ưu tiên cao nhất
+          case "On delivery":
+            return 1;
+          case "Done":
+            return 2;
+          case "Cancelled":
+            return 3; // Ưu tiên thấp nhất
+          default:
+            return 4; // Các trạng thái khác
+        }
+      };
+
+      // So sánh theo điểm ưu tiên
+      const priorityA = getPriorityScore(statusA);
+      const priorityB = getPriorityScore(statusB);
+
+      // Nếu cùng mức ưu tiên, sắp xếp theo thời gian tạo đơn (mới nhất lên đầu)
+      if (priorityA === priorityB) {
+        // Giả sử có orderDate và nó là string dạng ISO
+        const dateA = new Date(a.orderDate || 0).getTime();
+        const dateB = new Date(b.orderDate || 0).getTime();
+        return dateB - dateA; // Sắp xếp giảm dần theo thời gian
+      }
+
+      return priorityA - priorityB;
+    });
+  };
+
   const handleViewOrderDetails = (order: OrderResponse) => {
     setSelectedOrder(order);
     setDetailModalVisible(true);
@@ -122,52 +162,79 @@ const OrderManagerScreen = () => {
   const handleUpdateOrderStatus = (order: OrderResponse, newStatus: string) => {
     Alert.alert(
       "Xác nhận cập nhật",
-      `Bạn có chắc muốn cập nhật trạng thái đơn hàng ${order.orderId.substr(
-        0,
-        8
-      )} thành "${formatOrderStatus(newStatus)}"?`,
+      `Bạn có chắc muốn ${
+        newStatus === "Cancelled" ? "hủy" : "cập nhật trạng thái"
+      } đơn hàng ${order.orderId.substr(0, 8)} ${
+        newStatus !== "Cancelled"
+          ? `thành "${formatOrderStatus(newStatus)}"`
+          : ""
+      }?`,
       [
-        { text: "Hủy", style: "cancel" },
+        { text: "Không", style: "cancel" },
         {
-          text: "Cập nhật",
+          text: newStatus === "Cancelled" ? "Hủy đơn hàng" : "Cập nhật",
           onPress: async () => {
             try {
-              // Gọi API cập nhật trạng thái đơn hàng
-              const response = await api.updateOrderStatus(
-                order.orderId,
-                newStatus
-              );
+              if (newStatus === "Cancelled") {
+                // Gọi API xóa đơn hàng
+                const response = await api.deleteOrder(order.orderId);
+                console.log("Delete order response:", response);
 
-              if (response && response.isSuccess === false) {
-                throw new Error(
-                  response.message || "Không thể cập nhật trạng thái đơn hàng"
+                // Cập nhật local state (lọc order đã xóa khỏi danh sách)
+                const updatedOrders = orders.filter(
+                  (o) => o.orderId !== order.orderId
                 );
+
+                // Sắp xếp lại danh sách đơn hàng sau khi hủy đơn
+                setOrders(sortOrders(updatedOrders));
+
+                if (detailModalVisible) {
+                  setDetailModalVisible(false);
+                }
+
+                Alert.alert(
+                  "Thành công",
+                  "Đã hủy và xóa đơn hàng khỏi hệ thống."
+                );
+              } else {
+                // Gọi API cập nhật trạng thái đơn hàng
+                const response = await api.updateOrderStatus(
+                  order.orderId,
+                  newStatus
+                );
+
+                if (response && response.isSuccess === false) {
+                  throw new Error(
+                    response.message || "Không thể cập nhật trạng thái đơn hàng"
+                  );
+                }
+
+                // Cập nhật local state
+                const updatedOrders = orders.map((o) =>
+                  o.orderId === order.orderId
+                    ? { ...o, status: newStatus, orderStatus: newStatus }
+                    : o
+                );
+
+                // Sắp xếp lại danh sách đơn hàng sau khi cập nhật trạng thái
+                setOrders(sortOrders(updatedOrders));
+
+                // Cập nhật selectedOrder nếu đang xem chi tiết
+                if (selectedOrder && selectedOrder.orderId === order.orderId) {
+                  setSelectedOrder({
+                    ...selectedOrder,
+                    status: newStatus,
+                    orderStatus: newStatus,
+                  });
+                }
+
+                Alert.alert("Thành công", "Đã cập nhật trạng thái đơn hàng.");
               }
-
-              // Cập nhật local state
-              const updatedOrders = orders.map((o) =>
-                o.orderId === order.orderId
-                  ? { ...o, status: newStatus, orderStatus: newStatus }
-                  : o
-              );
-
-              setOrders(updatedOrders);
-
-              // Cập nhật selectedOrder nếu đang xem chi tiết
-              if (selectedOrder && selectedOrder.orderId === order.orderId) {
-                setSelectedOrder({
-                  ...selectedOrder,
-                  status: newStatus,
-                  orderStatus: newStatus,
-                });
-              }
-
-              Alert.alert("Thành công", "Đã cập nhật trạng thái đơn hàng.");
             } catch (error: any) {
-              console.error("Error updating order status:", error);
+              console.error("Error updating order:", error);
               Alert.alert(
                 "Lỗi",
-                error.message || "Không thể cập nhật trạng thái đơn hàng."
+                error.message || "Không thể thực hiện yêu cầu."
               );
             }
           },
@@ -331,7 +398,7 @@ const OrderManagerScreen = () => {
           style={[styles.actionButton, { backgroundColor: "#F44336" }]}
           onPress={() => handleUpdateOrderStatus(item, "Cancelled")}
         >
-          <Text style={styles.actionButtonText}>Hủy</Text>
+          <Text style={styles.actionButtonText}>Hủy đơn</Text>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -490,11 +557,11 @@ const OrderManagerScreen = () => {
                 <TouchableOpacity
                   style={[styles.modalButton, { backgroundColor: "#F44336" }]}
                   onPress={() => {
-                    handleUpdateOrderStatus(selectedOrder, "Cancelled");
                     setDetailModalVisible(false);
+                    handleUpdateOrderStatus(selectedOrder, "Cancelled");
                   }}
                 >
-                  <Text style={styles.modalButtonText}>Hủy</Text>
+                  <Text style={styles.modalButtonText}>Hủy đơn</Text>
                 </TouchableOpacity>
               </View>
 

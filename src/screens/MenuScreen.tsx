@@ -36,12 +36,12 @@ interface ProductApiItem {
 
 interface ApiResponse {
   $id: string;
+  isSuccess: boolean;
+  message: string | null;
   data: {
     $id: string;
     $values: ProductApiItem[];
   };
-  isSuccess: boolean;
-  message: string | null;
 }
 
 const MenuScreen: React.FC<MenuScreenProps> = ({ route }) => {
@@ -63,64 +63,45 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ route }) => {
         console.log(
           `[DEBUG] Fetching products for categoryId: ${categoryId}, category name: ${category}`
         );
-        const response = (await api.getProductsByCategory(
-          categoryId.toString()
-        )) as unknown as ApiResponse;
-        console.log(
-          "[DEBUG] Raw API Response:",
-          JSON.stringify(response, null, 2)
-        );
+        const response = await api.getProductsByCategory(categoryId.toString());
 
-        // Xử lý response theo cấu trúc mới
-        if (response && response.data && response.data.$values) {
-          products = response.data.$values.map((item) => ({
-            id: item.productId,
-            name: item.productName,
-            description: item.description || "",
-            price: item.price,
-            imageUrl: item.imageURL || "",
-            categoryId: item.categoryId,
-            category: category,
-          }));
+        console.log(
+          `[DEBUG] Found ${response.length} products for category: ${category}`
+        );
+        if (response.length === 0) {
+          console.log("[DEBUG] No products found. This might be an issue.");
+        } else {
+          console.log(
+            "[DEBUG] Products found:",
+            response.map((p) => ({
+              id: p.id,
+              name: p.name,
+              categoryId: p.categoryId,
+            }))
+          );
         }
+
+        setMenuItems(response);
       } else {
         console.log("[DEBUG] Fetching all products");
-        const response = (await api.getProducts()) as unknown as ApiResponse;
-        console.log(
-          "[DEBUG] All products response:",
-          JSON.stringify(response, null, 2)
-        );
+        const response = await api.getProducts();
 
-        if (response && response.data && response.data.$values) {
-          products = response.data.$values.map((item) => ({
-            id: item.productId,
-            name: item.productName,
-            description: item.description || "",
-            price: item.price,
-            imageUrl: item.imageURL || "",
-            categoryId: item.categoryId,
-            category: item.category || "",
-          }));
+        console.log(`[DEBUG] Found ${response.length} products`);
+        if (response.length === 0) {
+          console.log("[DEBUG] No products found. This might be an issue.");
+        } else {
+          console.log(
+            "[DEBUG] Products found:",
+            response.map((p) => ({
+              id: p.id,
+              name: p.name,
+              categoryId: p.categoryId,
+            }))
+          );
         }
-      }
 
-      console.log(
-        `[DEBUG] Found ${products.length} products for category: ${category}`
-      );
-      if (products.length === 0) {
-        console.log("[DEBUG] No products found. This might be an issue.");
-      } else {
-        console.log(
-          "[DEBUG] Products found:",
-          products.map((p) => ({
-            id: p.id,
-            name: p.name,
-            categoryId: p.categoryId,
-          }))
-        );
+        setMenuItems(response);
       }
-
-      setMenuItems(products);
     } catch (error) {
       console.error("[DEBUG] Error details:", {
         error,

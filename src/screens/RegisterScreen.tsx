@@ -48,23 +48,21 @@ const RegisterScreen = () => {
 
     setIsLoading(true);
     try {
-      // Call register API with object parameter
-      const response = await api.register({
+      // Call register API
+      await api.register({
         fullName,
         email,
         password,
         phone,
       });
 
-      console.log("Registration response:", response);
-
       // Show success message and navigate to email confirmation
       Alert.alert(
-        "Registration Successful",
-        "We've sent a confirmation code to your email. Please check your inbox and spam folder.",
+        "Đăng ký thành công",
+        "Chúng tôi đã gửi mã xác nhận đến email của bạn. Vui lòng kiểm tra hộp thư đến và thư rác.",
         [
           {
-            text: "OK",
+            text: "Xác thực ngay",
             onPress: () => {
               navigation.navigate("EmailConfirm", { email });
             },
@@ -75,8 +73,8 @@ const RegisterScreen = () => {
       console.error("Registration error:", error);
       const errorMessage =
         error.response?.data?.message ||
-        "Registration failed. Please try again.";
-      Alert.alert("Error", errorMessage);
+        "Đăng ký thất bại. Vui lòng thử lại sau.";
+      Alert.alert("Lỗi", errorMessage);
     } finally {
       setIsLoading(false);
     }

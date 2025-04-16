@@ -103,8 +103,7 @@ const EmailConfirmScreen = () => {
           onChangeText={setToken}
           leftIcon={{ type: "font-awesome", name: "key", color: "#8CC63F" }}
           containerStyle={styles.inputContainer}
-          keyboardType="number-pad"
-          maxLength={6}
+          keyboardType="default"
           disabled={isLoading || isConfirmed}
         />
 

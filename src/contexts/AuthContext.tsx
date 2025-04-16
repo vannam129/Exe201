@@ -13,7 +13,7 @@ interface AuthContextType {
     email: string,
     phone: string,
     password: string
-  ) => Promise<void>;
+  ) => Promise<{ success: boolean; message: string }>;
   logout: () => Promise<void>;
   error: string | null;
   getUserId: () => Promise<string>;
@@ -200,51 +200,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       });
       console.log("AuthContext: Register response received", response);
 
-      // Kiểm tra dữ liệu trả về
-      if (response && response.data) {
-        let token = "";
-        let userData: User | null = null;
-
-        // Extract token and user data from response
-        if (response.data.token) {
-          token = response.data.token;
-          userData = response.data.user || {
-            id: 0,
-            email: email,
-            username: fullName,
-            fullName: fullName,
-            phone: phone,
-          };
-        }
-
-        if (!token) {
-          console.error("Token not found in register response");
-          throw new Error("Registration successful but login required");
-        }
-
-        // Đảm bảo user có dữ liệu cơ bản
-        if (!userData) {
-          userData = {
-            id: 0,
-            email: email,
-            username: fullName,
-            fullName: fullName,
-            phone: phone,
-          };
-        }
-
-        // Save authentication data
-        await AsyncStorage.setItem("auth_token", token);
-        await AsyncStorage.setItem("user_data", JSON.stringify(userData));
-
-        // Update app state
-        setUser(userData);
-        setIsAuthenticated(true);
-        console.log("Registration successful:", userData.email);
-      } else {
-        console.error("Invalid register response structure:", response);
-        throw new Error("Invalid response data");
-      }
+      // Trả về kết quả thành công mà không đăng nhập tự động
+      // Yêu cầu người dùng xác thực email trước khi đăng nhập
+      return {
+        success: true,
+        message:
+          "Đăng ký thành công! Vui lòng xác thực email trước khi đăng nhập.",
+      };
     } catch (error: any) {
       const errorMessage = error.message || "Registration failed";
       console.error("Register error in AuthContext:", errorMessage, error);

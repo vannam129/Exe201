@@ -23,9 +23,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, "Home">;
 
 // Define the API response format
-interface ProductApiResponse {
+interface ApiResponse {
   $id: string;
-  $values: ProductApiItem[];
+  isSuccess: boolean;
+  message: string | null;
+  data: {
+    $id: string;
+    $values: ProductApiItem[];
+  };
 }
 
 interface ProductApiItem {
@@ -37,6 +42,24 @@ interface ProductApiItem {
   status: boolean;
   imageURL: string;
   categoryId: string;
+  category?: string;
+}
+
+interface CategoryApiResponse {
+  $id: string;
+  isSuccess: boolean;
+  message: string | null;
+  data: {
+    $id: string;
+    $values: CategoryApiItem[];
+  };
+}
+
+interface CategoryApiItem {
+  $id: string;
+  categoryId: string;
+  categoryName: string;
+  status: boolean;
 }
 
 const HomeScreen = () => {
@@ -51,37 +74,8 @@ const HomeScreen = () => {
   const fetchData = async () => {
     try {
       // Fetch products from /api/Product
-      const productsResponse = await api.getProducts();
-      console.log("API response:", productsResponse);
-
-      let products: MenuItem[] = [];
-
-      // Check if response is in the new format with $id and $values
-      if (
-        productsResponse &&
-        typeof productsResponse === "object" &&
-        "$id" in productsResponse &&
-        "$values" in productsResponse
-      ) {
-        // Type assertion to treat the response as the ProductApiResponse
-        const typedResponse = productsResponse as unknown as ProductApiResponse;
-
-        // Map the new format to our MenuItem format
-        products = typedResponse.$values.map((item: ProductApiItem) => ({
-          id: item.productId,
-          name: item.productName,
-          description: item.description,
-          price: item.price,
-          imageUrl: item.imageURL,
-          categoryId: item.categoryId,
-          category: "", // Adding the required category field with an empty string as default
-        }));
-
-        console.log("Mapped products:", products.map((p) => p.name).join(", "));
-      } else if (Array.isArray(productsResponse)) {
-        // Handle old format (direct array)
-        products = productsResponse;
-      }
+      const products = await api.getProducts();
+      console.log("Products response:", products);
 
       // Lấy 5 sản phẩm đầu tiên làm Popular Items
       if (products && products.length > 0) {
@@ -96,19 +90,14 @@ const HomeScreen = () => {
       }
 
       // Fetch categories
-      const categoriesResponse = await api.getCategories();
-      // Check if categoriesResponse exists and has expected structure
+      const categories = await api.getCategories();
       console.log(
         "HomeScreen received categories:",
-        JSON.stringify(categoriesResponse)
+        categories.map((c) => `${c.name} (${c.id})`).join(", ")
       );
 
-      if (categoriesResponse && Array.isArray(categoriesResponse)) {
-        console.log(
-          "Setting categories from API:",
-          categoriesResponse.map((c) => c.name).join(", ")
-        );
-        setCategories(categoriesResponse);
+      if (categories && categories.length > 0) {
+        setCategories(categories);
       }
     } catch (error) {
       console.error("Error fetching data", error);
