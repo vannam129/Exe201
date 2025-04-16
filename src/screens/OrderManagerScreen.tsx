@@ -558,7 +558,7 @@ const OrderManagerScreen = () => {
                   style={[styles.modalButton, { backgroundColor: "#F44336" }]}
                   onPress={() => {
                     setDetailModalVisible(false);
-                    handleUpdateOrderStatus(selectedOrder, "Cancelled");
+                    handleUpdateOrderStatus(selectedOrder, "đã hủy");
                   }}
                 >
                   <Text style={styles.modalButtonText}>Hủy đơn</Text>

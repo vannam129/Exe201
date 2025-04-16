@@ -27,7 +27,6 @@ const CategoryManagerScreen = () => {
     null
   );
   const [categoryName, setCategoryName] = useState("");
-  const [categoryDescription, setCategoryDescription] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -59,7 +58,6 @@ const CategoryManagerScreen = () => {
     setIsEditing(false);
     setSelectedCategory(null);
     setCategoryName("");
-    setCategoryDescription("");
     setModalVisible(true);
   };
 
@@ -67,7 +65,6 @@ const CategoryManagerScreen = () => {
     setIsEditing(true);
     setSelectedCategory(category);
     setCategoryName(category.name);
-    setCategoryDescription(category.description || "");
     setModalVisible(true);
   };
 
@@ -83,7 +80,7 @@ const CategoryManagerScreen = () => {
           onPress: async () => {
             try {
               // Gọi API xóa danh mục
-              // await api.deleteCategory(category.id);
+              await api.deleteCategory(category.id.toString());
 
               // Cập nhật danh sách danh mục
               setCategories(categories.filter((c) => c.id !== category.id));
@@ -106,33 +103,44 @@ const CategoryManagerScreen = () => {
 
     try {
       if (isEditing && selectedCategory) {
-        // Cập nhật danh mục
-        // const updatedCategory = await api.updateCategory({
-        //   id: selectedCategory.id,
-        //   name: categoryName,
-        //   description: categoryDescription,
-        // });
+        // Cập nhật danh mục sử dụng API
+        const response = await api.updateCategory({
+          id: selectedCategory.id.toString(),
+          name: categoryName,
+        });
+
+        console.log("API update response:", response);
 
         // Cập nhật danh sách danh mục
         const updatedCategories = categories.map((c) =>
-          c.id === selectedCategory.id
-            ? { ...c, name: categoryName, description: categoryDescription }
-            : c
+          c.id === selectedCategory.id ? { ...c, name: categoryName } : c
         );
         setCategories(updatedCategories);
         Alert.alert("Thành công", "Đã cập nhật danh mục.");
       } else {
         // Thêm danh mục mới
-        // const newCategory = await api.createCategory({
-        //   name: categoryName,
-        //   description: categoryDescription,
-        // });
-
-        // Thêm vào danh sách hiện tại (giả lập)
-        const newCategory: Category = {
-          id: Date.now().toString(),
+        const response = await api.createCategory({
           name: categoryName,
-          description: categoryDescription,
+        });
+
+        console.log("API response:", response);
+
+        // Xử lý phản hồi từ API để lấy ID mới
+        let newCategoryId = "";
+        if (response && response.data) {
+          newCategoryId = (
+            response.data.categoryId ||
+            response.data.id ||
+            Date.now()
+          ).toString();
+        } else {
+          newCategoryId = Date.now().toString();
+        }
+
+        // Thêm vào danh sách hiện tại với ID từ API hoặc ID tạm
+        const newCategory: Category = {
+          id: newCategoryId,
+          name: categoryName,
         };
         setCategories([...categories, newCategory]);
         Alert.alert("Thành công", "Đã thêm danh mục mới.");
@@ -161,9 +169,6 @@ const CategoryManagerScreen = () => {
     <View style={styles.categoryItem}>
       <View style={styles.categoryInfo}>
         <Text style={styles.categoryName}>{item.name}</Text>
-        {item.description && (
-          <Text style={styles.categoryDescription}>{item.description}</Text>
-        )}
       </View>
       <View style={styles.actionButtons}>
         <TouchableOpacity
@@ -238,16 +243,6 @@ const CategoryManagerScreen = () => {
               value={categoryName}
               onChangeText={setCategoryName}
               placeholder="Nhập tên danh mục"
-            />
-
-            <Text style={styles.inputLabel}>Mô tả</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={categoryDescription}
-              onChangeText={setCategoryDescription}
-              placeholder="Nhập mô tả danh mục"
-              multiline
-              numberOfLines={4}
             />
 
             <View style={styles.modalButtons}>
@@ -331,10 +326,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 4,
   },
-  categoryDescription: {
-    fontSize: 14,
-    color: "#666",
-  },
   actionButtons: {
     flexDirection: "row",
     alignItems: "center",
@@ -384,10 +375,6 @@ const styles = StyleSheet.create({
     padding: 10,
     marginBottom: 16,
     backgroundColor: "#f9f9f9",
-  },
-  textArea: {
-    height: 100,
-    textAlignVertical: "top",
   },
   modalButtons: {
     flexDirection: "row",

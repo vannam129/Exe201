@@ -127,4 +127,22 @@ export interface RegisterRequest {
 export interface LoginRequest {
   email: string;
   password: string;
+}
+
+export interface OrderRequest {
+  userId: string;
+  consigneeName: string;
+  deliverAddress: string;
+  phoneNumber: string;
+}
+
+export interface OrderDetailRequest {
+  orderId: string;
+  orderDetails: {
+    $values: Array<{
+      orderId: string;
+      productId: string;
+      productQuantity: number;
+    }>;
+  };
 } 

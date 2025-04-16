@@ -26,6 +26,12 @@ const RegisterScreen = () => {
       return false;
     }
 
+    // Kiểm tra độ dài mật khẩu ít nhất 6 ký tự
+    if (password.length < 6) {
+      Alert.alert("Lỗi", "Mật khẩu phải có ít nhất 6 ký tự");
+      return false;
+    }
+
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {

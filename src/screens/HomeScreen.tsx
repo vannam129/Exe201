@@ -20,7 +20,7 @@ import { RootStackParamList } from "../navigators/AppNavigator";
 import { useAuth } from "../contexts/AuthContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, "Home">;
+type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList>;
 
 // Define the API response format
 interface ApiResponse {
@@ -69,7 +69,7 @@ const HomeScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [addingToCart, setAddingToCart] = useState(false);
   const navigation = useNavigation<HomeScreenNavigationProp>();
-  const { user, isAuthenticated, getUserId } = useAuth();
+  const { user, isAuthenticated, getUserId, isAdmin } = useAuth();
 
   const fetchData = async () => {
     try {
@@ -293,7 +293,27 @@ const HomeScreen = () => {
         <FlatList
           data={popularItems}
           renderItem={({ item }) => (
-            <View style={styles.foodCard}>
+            <TouchableOpacity
+              style={styles.foodCard}
+              onPress={() => {
+                try {
+                  console.log(
+                    "HomeScreen: Chuẩn bị chuyển đến ProductDetails với ID:",
+                    item.id.toString()
+                  );
+                  console.log("HomeScreen: Loại dữ liệu ID:", typeof item.id);
+
+                  // Sử dụng hàm navigate trực tiếp từ navigation
+                  navigation.navigate("ProductDetails", {
+                    productId: item.id.toString(),
+                  });
+
+                  console.log("HomeScreen: Đã gọi navigate");
+                } catch (error) {
+                  console.error("HomeScreen: Lỗi khi chuyển trang:", error);
+                }
+              }}
+            >
               <Image
                 source={{
                   uri: item.imageUrl || "https://via.placeholder.com/150",
@@ -312,20 +332,25 @@ const HomeScreen = () => {
                       currency: "VND",
                     })}
                   </Text>
-                  <TouchableOpacity
-                    style={styles.addToCartButton}
-                    onPress={() => addToCart(item)}
-                    disabled={addingToCart}
-                  >
-                    {addingToCart ? (
-                      <ActivityIndicator size="small" color="#FFF" />
-                    ) : (
-                      <Text style={styles.addToCartText}>+</Text>
-                    )}
-                  </TouchableOpacity>
+                  {!isAdmin() && (
+                    <TouchableOpacity
+                      style={styles.addToCartButton}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        addToCart(item);
+                      }}
+                      disabled={addingToCart}
+                    >
+                      {addingToCart ? (
+                        <ActivityIndicator size="small" color="#FFF" />
+                      ) : (
+                        <Text style={styles.addToCartText}>+</Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
-            </View>
+            </TouchableOpacity>
           )}
           keyExtractor={(item) => item.id.toString()}
           showsVerticalScrollIndicator={false}

@@ -55,7 +55,7 @@ const CartScreen: React.FC = () => {
           }
         }
       } catch (error) {
-        console.error("Lỗi khi kiểm tra vai trò người dùng:", error);
+        console.error("Error checking user role:", error);
       }
     };
     checkUserRole();
@@ -77,7 +77,7 @@ const CartScreen: React.FC = () => {
     // Thêm listener để kiểm tra lại khi focus vào màn hình (sau khi đăng nhập)
     const unsubscribe = navigation.addListener("focus", () => {
       if (isAuthenticated) {
-        console.log("Màn hình giỏ hàng được focus, làm mới giỏ hàng...");
+        console.log("Cart screen focused, refreshing cart items...");
         fetchCartItems();
       }
     });
@@ -87,7 +87,7 @@ const CartScreen: React.FC = () => {
 
   const fetchCartItems = async () => {
     if (!isAuthenticated) {
-      console.log("Chưa đăng nhập, bỏ qua việc tải giỏ hàng");
+      console.log("Not authenticated, skipping cart fetch");
       setLoading(false);
       return;
     }
@@ -96,7 +96,7 @@ const CartScreen: React.FC = () => {
       setLoading(true);
 
       // Log trạng thái đăng nhập để debug
-      console.log("Trạng thái xác thực trước khi tải:", {
+      console.log("Auth state before fetch:", {
         isAuthenticated,
         hasUser: !!user,
         userId: user?.id || user?.userId,
@@ -104,32 +104,24 @@ const CartScreen: React.FC = () => {
 
       // Kiểm tra xem user có tồn tại không
       if (!user) {
-        console.log("Không tìm thấy user trong state, kiểm tra AsyncStorage");
+        console.log("User not found in state, checking AsyncStorage");
         const userData = await AsyncStorage.getItem("user_data");
         if (!userData) {
-          console.log(
-            "Không tìm thấy user trong AsyncStorage, hiển thị yêu cầu đăng nhập"
-          );
+          console.log("User not found in AsyncStorage, showing login prompt");
           setLoading(false);
           return;
         }
 
-        console.log(
-          "Đã tìm thấy dữ liệu người dùng trong AsyncStorage:",
-          userData
-        );
+        console.log("Found user data in AsyncStorage:", userData);
       }
 
       try {
         const userId = await getUserId();
-        console.log("Tải giỏ hàng cho userId:", userId);
+        console.log("Fetching cart for userId:", userId);
 
         // Gọi API giỏ hàng với userId
         const response = await api.getCart(userId);
-        console.log(
-          "Phản hồi API giỏ hàng:",
-          JSON.stringify(response, null, 2)
-        );
+        console.log("Cart API response:", JSON.stringify(response, null, 2));
 
         // Xử lý phản hồi API
         if (response && response.isSuccess && response.data) {
@@ -139,7 +131,7 @@ const CartScreen: React.FC = () => {
           if (response.data.products && Array.isArray(response.data.products)) {
             cartItems = response.data.products;
             console.log(
-              "Các sản phẩm trong giỏ hàng từ phản hồi:",
+              "Cart items from response:",
               JSON.stringify(cartItems, null, 2)
             );
           }
@@ -157,16 +149,16 @@ const CartScreen: React.FC = () => {
             }));
 
           console.log(
-            "Danh sách giỏ hàng cuối cùng sau khi định dạng:",
+            "Final formatted cart items:",
             JSON.stringify(cartItems, null, 2)
           );
           setCartItems(cartItems);
         } else {
-          console.log("Giỏ hàng trống hoặc phản hồi không hợp lệ");
+          console.log("Cart is empty or invalid response");
           setCartItems([]);
         }
       } catch (idError) {
-        console.error("Lỗi khi lấy userId:", idError);
+        console.error("Error getting userId:", idError);
         Alert.alert(
           "Lỗi đăng nhập",
           "Không thể lấy thông tin người dùng. Vui lòng đăng nhập lại.",
@@ -177,7 +169,7 @@ const CartScreen: React.FC = () => {
         );
       }
     } catch (error) {
-      console.error("Lỗi khi tải giỏ hàng:", error);
+      console.error("Error fetching cart:", error);
       Alert.alert("Lỗi", "Không thể tải giỏ hàng. Vui lòng thử lại sau.");
       setCartItems([]);
     } finally {
@@ -209,7 +201,7 @@ const CartScreen: React.FC = () => {
       // Lấy userId từ AuthContext
       const userId = await getUserId();
 
-      console.log("Cập nhật sản phẩm trong giỏ hàng:", {
+      console.log("Updating cart item:", {
         userId,
         productId: item.productId,
         quantity: newQuantity,
@@ -222,7 +214,7 @@ const CartScreen: React.FC = () => {
       );
 
       if (response && response.isSuccess) {
-        console.log("Cập nhật giỏ hàng thành công:", response);
+        console.log("Cart update successful:", response);
 
         // Cập nhật local state để tránh phải refresh toàn bộ giỏ hàng
         setCartItems((currentItems) =>
@@ -237,7 +229,7 @@ const CartScreen: React.FC = () => {
         fetchCartItems();
       }
     } catch (error) {
-      console.error("Lỗi khi cập nhật giỏ hàng:", error);
+      console.error("Error updating cart:", error);
       Alert.alert("Lỗi", "Không thể cập nhật giỏ hàng. Vui lòng thử lại sau.");
       fetchCartItems(); // Refresh để đồng bộ lại với server
     } finally {
@@ -256,10 +248,7 @@ const CartScreen: React.FC = () => {
 
       // Lấy userId từ AuthContext
       const userId = await getUserId();
-      console.log("Xóa sản phẩm khỏi giỏ hàng:", {
-        userId,
-        productId: item.productId,
-      });
+      console.log("Removing cart item:", { userId, productId: item.productId });
 
       // Gọi API xóa sản phẩm (quantity=0)
       const response = await api.removeFromCart(userId, item.productId);
@@ -281,7 +270,7 @@ const CartScreen: React.FC = () => {
         fetchCartItems(); // Refresh lại giỏ hàng nếu thất bại
       }
     } catch (error) {
-      console.error("Lỗi khi xóa sản phẩm khỏi giỏ hàng:", error);
+      console.error("Error removing from cart:", error);
       Alert.alert("Lỗi", "Không thể xóa sản phẩm. Vui lòng thử lại sau.");
       fetchCartItems(); // Refresh để đồng bộ lại với server
     } finally {
@@ -369,21 +358,15 @@ const CartScreen: React.FC = () => {
     try {
       setUpdating(true);
 
-      // Sử dụng deliveryId cố định thay vì từ dropdown
-      const deliveryId = defaultDeliveryId;
-      console.log("Using fixed deliveryId:", deliveryId);
-
       // Lấy userId
       const userId = await getUserId();
 
-      // Tạo đơn hàng theo cấu trúc API mới từ Swagger
+      // Tạo đơn hàng theo cấu trúc API như yêu cầu
       const orderData = {
         userId: userId,
         consigneeName: orderForm.consigneeName,
         deliverAddress: orderForm.deliverAddress,
         phoneNumber: orderForm.phoneNumber,
-        deliveryId: deliveryId,
-        totalPrice: calculateTotal(),
       };
 
       console.log("Creating order with data:", orderData);
@@ -453,64 +436,13 @@ const CartScreen: React.FC = () => {
           } else {
             console.error("No response received when creating order details");
           }
-
-          // Cập nhật tổng tiền cho đơn hàng sau khi đã tạo tất cả chi tiết
-          const totalAmount = calculateTotal();
-          if (totalAmount > 0) {
-            try {
-              const updateResult = await api.updateOrderTotal(
-                orderId,
-                totalAmount
-              );
-              console.log(
-                "Updated order total:",
-                totalAmount,
-                "Result:",
-                JSON.stringify(updateResult, null, 2)
-              );
-            } catch (updateError) {
-              console.error("Error updating order total:", updateError);
-            }
-          }
         } catch (detailError) {
           console.error("Error creating order details:", detailError);
         }
       }
 
-      // Đơn hàng đã được tạo thành công, xóa toàn bộ giỏ hàng
-      console.log("Order created successfully, clearing cart items");
-
-      // Xóa toàn bộ giỏ hàng
-      try {
-        // Lấy userId để xóa toàn bộ giỏ hàng
-        const userId = await getUserId();
-
-        // Xóa toàn bộ giỏ hàng trên server
-        const clearCartResponse = await api.clearCart(userId);
-        console.log("Server cart clear response:", clearCartResponse);
-
-        // Nếu không xóa được toàn bộ, thử xóa từng sản phẩm
-        if (!clearCartResponse || !clearCartResponse.isSuccess) {
-          console.log("Fallback: removing items one by one");
-          // Tạo một bản sao của mảng cartItems để tránh lỗi khi xóa
-          const itemsToRemove = [...cartItems];
-
-          // Lặp qua tất cả các mặt hàng trong giỏ hàng và xóa lần lượt
-          for (const item of itemsToRemove) {
-            await removeItem(item, false); // Xóa mà không hiển thị thông báo
-            console.log(`Removed item ${item.productId} from cart`);
-          }
-        }
-
-        // Cập nhật state local để hiển thị giỏ hàng trống
-        setCartItems([]);
-        console.log("All items removed from cart successfully");
-      } catch (clearCartError) {
-        console.error("Error clearing cart after order:", clearCartError);
-        // Vẫn tiếp tục với UI flow vì đơn hàng đã được tạo thành công
-        // Nhưng vẫn làm trống giỏ hàng trong state UI
-        setCartItems([]);
-      }
+      // BE sẽ tự xóa giỏ hàng, chỉ cần cập nhật UI
+      setCartItems([]);
 
       // Đóng modal và hiển thị thông báo thành công
       setCheckoutModalVisible(false);

@@ -30,7 +30,7 @@ const OrdersScreen: React.FC = () => {
   );
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const navigation = useNavigation<OrdersScreenNavigationProp>();
-  const { isAuthenticated, getUserId } = useAuth();
+  const { isAuthenticated, getUserId, isAdmin } = useAuth();
 
   useEffect(() => {
     fetchOrders();
@@ -45,6 +45,46 @@ const OrdersScreen: React.FC = () => {
     return unsubscribe;
   }, [navigation, isAuthenticated]);
 
+  // Hàm sắp xếp đơn hàng theo thứ tự ưu tiên: Pending -> Shipped/Processing -> Delivered -> Cancelled
+  const sortOrders = (orders: OrderResponse[]) => {
+    return [...orders].sort((a, b) => {
+      const statusA = a.orderStatus || a.status || "";
+      const statusB = b.orderStatus || b.status || "";
+
+      // Hàm để lấy điểm ưu tiên cho từng trạng thái
+      const getPriorityScore = (status: string) => {
+        switch (status) {
+          case "Pending":
+            return 0; // Ưu tiên cao nhất
+          case "Shipped":
+          case "Processing":
+            return 1;
+          case "Delivered":
+            return 2;
+          case "Cancelled":
+          case "Canceled":
+            return 3; // Ưu tiên thấp nhất
+          default:
+            return 4; // Các trạng thái khác
+        }
+      };
+
+      // So sánh theo điểm ưu tiên
+      const priorityA = getPriorityScore(statusA);
+      const priorityB = getPriorityScore(statusB);
+
+      // Nếu cùng mức ưu tiên, sắp xếp theo thời gian tạo đơn (mới nhất lên đầu)
+      if (priorityA === priorityB) {
+        // Giả sử có orderDate và nó là string dạng ISO
+        const dateA = new Date(a.orderDate || 0).getTime();
+        const dateB = new Date(b.orderDate || 0).getTime();
+        return dateB - dateA; // Sắp xếp giảm dần theo thời gian
+      }
+
+      return priorityA - priorityB;
+    });
+  };
+
   const fetchOrders = async () => {
     if (!isAuthenticated) {
       setLoading(false);
@@ -55,6 +95,7 @@ const OrdersScreen: React.FC = () => {
       setLoading(true);
       const userId = await getUserId();
       console.log("Fetching orders for user:", userId);
+      const isUserAdmin = isAdmin(); // Kiểm tra người dùng có phải là admin không
 
       const response = await api.getUserOrders(userId);
       console.log("Orders response:", response);
@@ -87,56 +128,59 @@ const OrdersScreen: React.FC = () => {
 
         console.log("Formatted orders:", ordersData);
 
+        // Nếu không phải admin, lọc chỉ lấy đơn hàng của người dùng hiện tại
+        if (!isUserAdmin) {
+          ordersData = ordersData.filter(
+            (order: any) => order.userId === userId
+          );
+        }
+
         // Cho mỗi đơn hàng, gọi API chi tiết đơn hàng nếu orderDetails trống
         for (const order of ordersData) {
-          // Chỉ gọi API tạo detail cho đơn hàng của chính người dùng hiện tại
-          if (order.userId === userId) {
-            if (
-              !order.orderDetails ||
-              (order.orderDetails.$values &&
-                order.orderDetails.$values.length === 0) ||
-              (Array.isArray(order.orderDetails) &&
-                order.orderDetails.length === 0)
-            ) {
+          if (
+            !order.orderDetails ||
+            (order.orderDetails.$values &&
+              order.orderDetails.$values.length === 0) ||
+            (Array.isArray(order.orderDetails) &&
+              order.orderDetails.length === 0)
+          ) {
+            console.log(
+              `Order ${order.orderId} has no details, fetching details...`
+            );
+
+            try {
+              // Gọi API để lấy thông tin chi tiết đơn hàng
+              const orderDetailResponse = await api.createOrderDetail({
+                orderId: order.orderId,
+                orderDetails: {
+                  $values: [
+                    {
+                      orderId: order.orderId,
+                      productId: order.productId || "",
+                      productQuantity: order.quantity || 1,
+                    },
+                  ],
+                },
+              });
+
               console.log(
-                `Order ${order.orderId} has no details, fetching details...`
+                `Order detail created for order ${order.orderId}:`,
+                orderDetailResponse
               );
 
-              try {
-                // Gọi API để lấy thông tin chi tiết đơn hàng
-                // Sử dụng userId của đơn hàng, không phải userId của người dùng hiện tại
-                const orderDetailResponse = await api.createOrderDetail({
-                  orderId: order.orderId,
-                  orderDetails: {
-                    $values: [
-                      {
-                        orderId: order.orderId,
-                        productId: order.productId || "",
-                        productQuantity: order.quantity || 1,
-                      },
-                    ],
-                  },
-                });
-
-                console.log(
-                  `Order detail created for order ${order.orderId}:`,
-                  orderDetailResponse
-                );
-
-                // Cập nhật orderDetails cho đơn hàng nếu API trả về thành công
-                if (orderDetailResponse && orderDetailResponse.isSuccess) {
-                  // Cập nhật đơn hàng trong danh sách với chi tiết mới
-                  if (orderDetailResponse.data) {
-                    order.orderDetails = orderDetailResponse.data;
-                  }
+              // Cập nhật orderDetails cho đơn hàng nếu API trả về thành công
+              if (orderDetailResponse && orderDetailResponse.isSuccess) {
+                // Cập nhật đơn hàng trong danh sách với chi tiết mới
+                if (orderDetailResponse.data) {
+                  order.orderDetails = orderDetailResponse.data;
                 }
-              } catch (detailError) {
-                console.error(
-                  `Error creating order detail for order ${order.orderId}:`,
-                  detailError
-                );
-                // Tiếp tục xử lý các đơn hàng khác ngay cả khi có lỗi
               }
+            } catch (detailError) {
+              console.error(
+                `Error creating order detail for order ${order.orderId}:`,
+                detailError
+              );
+              // Tiếp tục xử lý các đơn hàng khác ngay cả khi có lỗi
             }
           }
         }
@@ -181,7 +225,8 @@ const OrdersScreen: React.FC = () => {
           }
         }
 
-        setOrders(ordersData);
+        // Sắp xếp đơn hàng theo thứ tự ưu tiên trước khi hiển thị
+        setOrders(sortOrders(ordersData));
       } else {
         console.warn(
           "Failed to fetch orders:",
@@ -199,6 +244,52 @@ const OrdersScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Thêm hàm hủy đơn hàng
+  const handleCancelOrder = (orderId: string) => {
+    Alert.alert(
+      "Xác nhận hủy đơn hàng",
+      "Bạn có chắc chắn muốn hủy đơn hàng này không?",
+      [
+        { text: "Không", style: "cancel" },
+        {
+          text: "Có, hủy đơn hàng",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setLoading(true);
+              await api.deleteOrder(orderId);
+
+              // Cập nhật local state thay vì gọi lại API
+              const updatedOrders = orders.map((order) =>
+                order.orderId === orderId
+                  ? { ...order, status: "Cancelled", orderStatus: "Cancelled" }
+                  : order
+              );
+
+              // Áp dụng hàm sắp xếp và cập nhật state
+              setOrders(sortOrders(updatedOrders));
+
+              // Đóng modal chi tiết nếu đang mở
+              if (detailModalVisible && selectedOrder?.orderId === orderId) {
+                setDetailModalVisible(false);
+              }
+
+              Alert.alert("Thành công", "Đơn hàng đã được hủy thành công");
+            } catch (error) {
+              console.error("Error cancelling order:", error);
+              Alert.alert(
+                "Lỗi",
+                "Không thể hủy đơn hàng. Vui lòng thử lại sau."
+              );
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const formatOrderStatus = (status: string) => {
@@ -275,63 +366,80 @@ const OrdersScreen: React.FC = () => {
     const totalPrice = calculateOrderTotal(item);
     const status = item.orderStatus || item.status || "Pending";
 
+    // Kiểm tra nếu đơn hàng đang ở trạng thái "Pending" thì hiển thị nút hủy
+    const canCancelOrder = status === "Pending";
+
     return (
-      <TouchableOpacity
-        style={styles.orderItem}
-        onPress={() => handleViewOrderDetails(item)}
-      >
-        <View style={styles.orderHeader}>
-          <Text style={styles.orderId}>
-            Đơn hàng #{item.orderId.substr(0, 8)}
-          </Text>
-          <View
-            style={[
-              styles.statusBadge,
-              {
-                backgroundColor:
-                  status === "Delivered"
-                    ? "#4CAF50"
-                    : status === "Cancelled"
-                    ? "#F44336"
-                    : "#FFC107",
-              },
-            ]}
-          >
-            <Text style={styles.statusText}>{formatOrderStatus(status)}</Text>
+      <View style={styles.orderItem}>
+        <TouchableOpacity
+          style={styles.orderContent}
+          onPress={() => handleViewOrderDetails(item)}
+        >
+          <View style={styles.orderHeader}>
+            <Text style={styles.orderId}>
+              Đơn hàng #{item.orderId.substr(0, 8)}
+            </Text>
+            <View
+              style={[
+                styles.statusBadge,
+                {
+                  backgroundColor:
+                    status === "Delivered"
+                      ? "#4CAF50"
+                      : status === "Cancelled"
+                      ? "#F44336"
+                      : "#FFC107",
+                },
+              ]}
+            >
+              <Text style={styles.statusText}>{formatOrderStatus(status)}</Text>
+            </View>
           </View>
-        </View>
 
-        <View style={styles.orderInfo}>
-          <Text style={styles.orderDate}>
-            Ngày đặt: {formatDate(item.orderDate)}
-          </Text>
-          <Text style={styles.productCount}>{productCount} sản phẩm</Text>
-        </View>
+          <View style={styles.orderInfo}>
+            <Text style={styles.orderDate}>
+              Ngày đặt: {formatDate(item.orderDate)}
+            </Text>
+            <Text style={styles.productCount}>{productCount} sản phẩm</Text>
+          </View>
 
-        <Text style={styles.orderTotal}>
-          Tổng tiền:{" "}
-          {totalPrice > 0
-            ? totalPrice.toLocaleString("vi-VN", {
-                style: "currency",
-                currency: "VND",
-              })
-            : "Đang cập nhật..."}
-        </Text>
+          <Text style={styles.orderTotal}>
+            Tổng tiền:{" "}
+            {totalPrice > 0
+              ? totalPrice.toLocaleString("vi-VN", {
+                  style: "currency",
+                  currency: "VND",
+                })
+              : "Đang cập nhật..."}
+          </Text>
 
-        <View style={styles.orderAddress}>
-          <Text style={styles.consigneeName}>
-            Người nhận: {item.consigneeName}
-          </Text>
-          <Text
-            style={styles.deliveryAddress}
-            numberOfLines={1}
-            ellipsizeMode="tail"
-          >
-            Địa chỉ: {item.deliverAddress}
-          </Text>
-          <Text style={styles.phoneNumber}>SĐT: {item.phoneNumber}</Text>
-        </View>
-      </TouchableOpacity>
+          <View style={styles.orderAddress}>
+            <Text style={styles.consigneeName}>
+              Người nhận: {item.consigneeName}
+            </Text>
+            <Text
+              style={styles.deliveryAddress}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              Địa chỉ: {item.deliverAddress}
+            </Text>
+            <Text style={styles.phoneNumber}>SĐT: {item.phoneNumber}</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Thêm nút hủy đơn hàng nếu đơn hàng đang ở trạng thái "Pending" */}
+        {canCancelOrder && (
+          <View style={styles.orderActions}>
+            <TouchableOpacity
+              style={styles.cancelOrderButton}
+              onPress={() => handleCancelOrder(item.orderId)}
+            >
+              <Text style={styles.cancelOrderButtonText}>Hủy đơn hàng</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
     );
   };
 
@@ -358,6 +466,12 @@ const OrdersScreen: React.FC = () => {
 
   const renderOrderDetailModal = () => {
     if (!selectedOrder) return null;
+
+    // Kiểm tra nếu đơn hàng đang ở trạng thái "Pending" thì mới hiển thị nút hủy
+    const canCancelOrder =
+      selectedOrder &&
+      (selectedOrder.orderStatus === "Pending" ||
+        selectedOrder.status === "Pending");
 
     return (
       <Modal
@@ -485,6 +599,19 @@ const OrdersScreen: React.FC = () => {
                 </Text>
               </View>
 
+              {/* Thêm nút hủy đơn hàng nếu đơn hàng đang ở trạng thái "Pending" */}
+              {canCancelOrder && (
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={() => {
+                    setDetailModalVisible(false);
+                    handleCancelOrder(selectedOrder.orderId);
+                  }}
+                >
+                  <Text style={styles.cancelButtonText}>Hủy đơn hàng</Text>
+                </TouchableOpacity>
+              )}
+
               <TouchableOpacity
                 style={styles.closeButton}
                 onPress={() => setDetailModalVisible(false)}
@@ -605,13 +732,15 @@ const styles = StyleSheet.create({
   orderItem: {
     backgroundColor: "#fff",
     borderRadius: 10,
-    padding: 16,
     marginBottom: 12,
     shadowColor: "#000",
     shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
     elevation: 2,
+  },
+  orderContent: {
+    padding: 16,
   },
   orderHeader: {
     flexDirection: "row",
@@ -666,6 +795,24 @@ const styles = StyleSheet.create({
   phoneNumber: {
     fontSize: 14,
     color: "#666",
+  },
+  orderActions: {
+    borderTopWidth: 1,
+    borderTopColor: "#eee",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  cancelOrderButton: {
+    backgroundColor: "#F44336",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 5,
+    alignItems: "center",
+  },
+  cancelOrderButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 14,
   },
   modalContainer: {
     flex: 1,
@@ -756,6 +903,20 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 12,
     fontWeight: "bold",
+  },
+  // Thêm style cho nút hủy đơn hàng
+  cancelButton: {
+    backgroundColor: "#F44336",
+    borderRadius: 6,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  cancelButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 16,
   },
   closeButton: {
     backgroundColor: "#f0f0f0",

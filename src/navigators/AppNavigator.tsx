@@ -24,6 +24,7 @@ import ProfileScreen from "../screens/ProfileScreen";
 import OrderManagerScreen from "../screens/OrderManagerScreen";
 import ProductManagerScreen from "../screens/ProductManagerScreen";
 import CategoryManagerScreen from "../screens/CategoryManagerScreen";
+import ProductDetailScreen from "../screens/ProductDetailScreen";
 
 // Create navigator types
 export type RootStackParamList = {
@@ -153,6 +154,21 @@ const RootStack = () => {
         name="CategoryManager"
         component={CategoryManagerScreen}
         options={{ title: "Quản lý danh mục" }}
+      />
+      <Stack.Screen
+        name="ProductDetails"
+        component={ProductDetailScreen}
+        options={{
+          title: "Chi tiết sản phẩm",
+          headerShown: true,
+          headerStyle: {
+            backgroundColor: "#f50",
+          },
+          headerTintColor: "#fff",
+          headerTitleStyle: {
+            fontWeight: "bold",
+          },
+        }}
       />
     </Stack.Navigator>
   );

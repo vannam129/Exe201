@@ -674,24 +674,15 @@ export const api = {
     consigneeName: string;
     deliverAddress: string;
     phoneNumber: string;
-    deliveryId: string;
-    totalPrice?: number;
   }) => {
     try {
       // Kiểm tra các trường bắt buộc
       if (!orderData.userId || !orderData.consigneeName || !orderData.deliverAddress || 
-          !orderData.phoneNumber || !orderData.deliveryId) {
+          !orderData.phoneNumber) {
         throw new Error("Vui lòng điền đầy đủ thông tin đơn hàng");
       }
       
-      // Đảm bảo totalPrice luôn có giá trị
-      const orderDataWithTotal = {
-        ...orderData,
-        // Nếu totalPrice là 0, gán giá trị 1 để tránh server hiểu nhầm
-        totalPrice: orderData.totalPrice || orderData.totalPrice === 0 ? orderData.totalPrice : 1
-      };
-      
-      console.log("Creating order with data:", orderDataWithTotal);
+      console.log("Creating order with data:", orderData);
       
       // Lấy token xác thực
       const token = await AsyncStorage.getItem('auth_token');
@@ -707,7 +698,7 @@ export const api = {
       });
       
       // Gọi API tạo đơn hàng
-      const response = await apiClient.post('/api/Order', orderDataWithTotal);
+      const response = await apiClient.post('/api/Order', orderData);
       
       console.log('Order creation response:', response.data);
       
@@ -878,6 +869,69 @@ export const api = {
     }
   },
   
+  // Lấy chi tiết sản phẩm theo ID
+  getProductById: async (productId: string): Promise<MenuItem | null> => {
+    try {
+      console.log(`API: Bắt đầu lấy thông tin sản phẩm có ID: ${productId}`);
+      console.log(`API URL: ${API_URL}/api/Product/${productId}`);
+      
+      const response = await getClient().get(`/api/Product/${productId}`);
+      console.log(`API: Nhận được phản hồi chi tiết sản phẩm:`, response.data);
+      
+      if (!response || !response.data) {
+        console.error('API: Không nhận được dữ liệu từ API');
+        return null;
+      }
+      
+      // Xử lý response theo cấu trúc API
+      let productData: any;
+      
+      // Trường hợp API trả về cấu trúc {isSuccess, data}
+      if (response.data.isSuccess && response.data.data) {
+        console.log('API: Phát hiện cấu trúc {isSuccess, data}');
+        productData = response.data.data;
+      } 
+      // Trường hợp API trả về cấu trúc {$id, productId, ...}
+      else if (response.data.$id && response.data.productId) {
+        console.log('API: Phát hiện cấu trúc {$id, productId, ...}');
+        productData = response.data;
+      }
+      // Trường hợp API trả về trực tiếp object product
+      else {
+        console.log('API: Phát hiện cấu trúc trực tiếp');
+        productData = response.data;
+      }
+      
+      if (!productData) {
+        console.error('API: Không thể phân tích dữ liệu sản phẩm từ phản hồi');
+        return null;
+      }
+      
+      console.log('API: Dữ liệu sản phẩm đã xử lý:', productData);
+      
+      // Chuyển đổi dữ liệu sang định dạng MenuItem
+      const result: MenuItem = {
+        id: productData.productId || productId,
+        name: productData.productName || '',
+        description: productData.description || '',
+        price: parseFloat(productData.price || 0),
+        imageUrl: productData.imageURL || '', 
+        category: productData.categoryName || '',
+        categoryId: productData.categoryId || ''
+      };
+      
+      console.log('API: Đã chuyển đổi thành công sang định dạng MenuItem:', result);
+      return result;
+    } catch (error) {
+      console.error(`Error fetching product details for ID ${productId}:`, error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+      return null;
+    }
+  },
+  
   // Menu (deprecated, use Product instead)
   getMenuItems: async () => {
     try {
@@ -904,12 +958,22 @@ export const api = {
     try {
       console.log('Getting orders for userId:', userId);
       
-      // URL endpoint cần được sửa - có thể server không có route /api/Order/user/
-      // Thử thay bằng /api/Order?userId=
-      console.log('API URL:', `${API_URL}/api/Order?userId=${userId}`);
-      
       // Lấy token xác thực
       const token = await AsyncStorage.getItem('auth_token');
+      
+      // Lấy thông tin role từ AsyncStorage
+      const userData = await AsyncStorage.getItem('user_data');
+      let userRole = 'customer'; // mặc định là customer
+      
+      if (userData) {
+        try {
+          const parsedUserData = JSON.parse(userData);
+          userRole = parsedUserData.role?.toLowerCase() || 'customer';
+          console.log('User role detected:', userRole);
+        } catch (error) {
+          console.error('Error parsing user data:', error);
+        }
+      }
       
       // Tạo instance API client
       const apiClient = axios.create({
@@ -921,8 +985,20 @@ export const api = {
         }
       });
       
-      // Sửa endpoint để lấy danh sách đơn hàng
-      const response = await apiClient.get(`/api/Order?userId=${userId}`);
+      // Xác định API endpoint dựa trên role
+      let endpoint = '';
+      if (userRole === 'admin') {
+        // Admin có thể xem tất cả đơn hàng
+        endpoint = '/api/Order';
+        console.log('Using admin endpoint:', `${API_URL}${endpoint}`);
+      } else {
+        // Customer chỉ xem đơn hàng của mình
+        endpoint = `/api/Order?userId=${userId}`;
+        console.log('Using customer endpoint:', `${API_URL}${endpoint}`);
+      }
+      
+      // Gọi API lấy danh sách đơn hàng
+      const response = await apiClient.get(endpoint);
       console.log('Get user orders response:', response.data);
       
       if (response.data && response.data.isSuccess === false) {
@@ -1159,20 +1235,52 @@ export const api = {
   // Thêm hàm createOrderDetail vào file api.ts
   createOrderDetail: async (data: OrderDetailRequest) => {
     try {
-      const token = await AsyncStorage.getItem("token");
-      if (!token) {
-        throw new Error("No token found");
+      console.log('Creating order details with data:', JSON.stringify(data, null, 2));
+      
+      // Lấy token xác thực
+      const token = await AsyncStorage.getItem('auth_token');
+      
+      // Lấy userId từ AsyncStorage
+      const userData = await AsyncStorage.getItem('user_data');
+      const userId = userData ? JSON.parse(userData).userId || JSON.parse(userData).id : null;
+      
+      if (!userId) {
+        throw new Error('Không thể xác định người dùng, vui lòng đăng nhập lại');
       }
-
-      const response = await apiClient.post("/api/OrderDetails", data, {
+      
+      // Tạo instance API client
+      const apiClient = axios.create({
+        baseURL: API_URL,
         headers: {
-          Authorization: `Bearer ${token}`,
-        },
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
       });
-
+      
+      // Gọi API tạo chi tiết đơn hàng
+      const response = await apiClient.post(`/api/Order/detail?userId=${userId}`, {
+        orderId: data.orderId,
+        orderDetails: data.orderDetails
+      });
+      
+      console.log('Order detail creation response:', response.data);
+      
+      if (response.data && response.data.isSuccess === false) {
+        throw new Error(response.data.message || 'Không thể tạo chi tiết đơn hàng');
+      }
+      
       return response.data;
-    } catch (error) {
-      console.error("Error creating order detail:", error);
+    } catch (error: any) {
+      console.error('Error creating order detail:', error);
+      if (error.response) {
+        console.error('API error response:', error.response.data);
+        if (error.response.data && error.response.data.errors) {
+          const errorMessages = Object.values(error.response.data.errors).flat();
+          throw new Error(`Lỗi: ${errorMessages.join(', ')}`);
+        }
+        throw new Error(error.response.data?.message || `Lỗi ${error.response.status}`);
+      }
       throw error;
     }
   },
@@ -1325,6 +1433,7 @@ export const api = {
 
       // Chuẩn bị dữ liệu theo định dạng API yêu cầu
       const requestData = {
+        productId: productId,  // Thêm productId vào body
         productName: productData.name,
         price: productData.price,
         description: productData.description,
@@ -1334,7 +1443,8 @@ export const api = {
       };
 
       console.log(`Updating product ${productId} with data:`, requestData);
-      const response = await apiClient.put(`/api/Product/${productId}`, requestData);
+      // Thay đổi endpoint từ /api/Product/${productId} thành /api/Product
+      const response = await apiClient.put('/api/Product', requestData);
       
       if (response.status !== 200) {
         throw new Error('Failed to update product');
@@ -1377,6 +1487,128 @@ export const api = {
       return true;
     } catch (error: any) {
       console.error('Error deleting product:', error);
+      if (error.response) {
+        console.error('API error status:', error.response.status);
+        console.error('API error data:', error.response.data);
+      }
+      throw error;
+    }
+  },
+
+  // Thêm danh mục mới
+  createCategory: async (categoryData: { 
+    name: string;
+    status?: boolean;
+  }) => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      const apiClient = axios.create({
+        baseURL: API_URL,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      // Chuẩn bị dữ liệu theo định dạng API yêu cầu
+      const requestData = {
+        categoryName: categoryData.name,
+        status: categoryData.status !== undefined ? categoryData.status : true
+      };
+
+      console.log('Creating category with data:', requestData);
+      const response = await apiClient.post('/api/Category', requestData);
+      
+      if (response.status !== 200 && response.status !== 201) {
+        throw new Error('Failed to create category');
+      }
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error creating category:', error);
+      if (error.response) {
+        console.error('API error status:', error.response.status);
+        console.error('API error data:', error.response.data);
+      }
+      throw error;
+    }
+  },
+
+  // Cập nhật danh mục
+  updateCategory: async (categoryData: { 
+    id: string;
+    name: string;
+    status?: boolean;
+  }) => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      const apiClient = axios.create({
+        baseURL: API_URL,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      // Chuẩn bị dữ liệu theo định dạng API yêu cầu
+      const requestData = {
+        categoryId: categoryData.id,
+        categoryName: categoryData.name,
+        status: categoryData.status !== undefined ? categoryData.status : true
+      };
+
+      console.log('Updating category with data:', requestData);
+      const response = await apiClient.put('/api/Category', requestData);
+      
+      if (response.status !== 200) {
+        throw new Error('Failed to update category');
+      }
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error updating category:', error);
+      if (error.response) {
+        console.error('API error status:', error.response.status);
+        console.error('API error data:', error.response.data);
+      }
+      throw error;
+    }
+  },
+
+  // Xóa danh mục
+  deleteCategory: async (categoryId: string) => {
+    try {
+      const token = await AsyncStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
+      const apiClient = axios.create({
+        baseURL: API_URL,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      console.log('Deleting category with ID:', categoryId);
+      const response = await apiClient.delete(`/api/Category/${categoryId}`);
+      
+      if (response.status !== 200) {
+        throw new Error('Failed to delete category');
+      }
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error deleting category:', error);
       if (error.response) {
         console.error('API error status:', error.response.status);
         console.error('API error data:', error.response.data);

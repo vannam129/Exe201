@@ -16,8 +16,10 @@ import api from "../services/api";
 import { MenuItem } from "../types";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigation } from "@react-navigation/native";
+import { StackNavigationProp } from "@react-navigation/stack";
 
 type MenuScreenRouteProp = RouteProp<RootStackParamList, "Menu">;
+type MenuScreenNavigationProp = StackNavigationProp<RootStackParamList>;
 
 interface MenuScreenProps {
   route?: MenuScreenRouteProp;
@@ -51,8 +53,8 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ route }) => {
   const [addingToCart, setAddingToCart] = useState<string | null>(null);
   const category = route?.params?.category || "Tất cả";
   const categoryId = route?.params?.categoryId;
-  const { isAuthenticated, user, getUserId } = useAuth();
-  const navigation = useNavigation();
+  const { isAuthenticated, user, getUserId, isAdmin } = useAuth();
+  const navigation = useNavigation<MenuScreenNavigationProp>();
 
   const fetchMenuItems = async () => {
     try {
@@ -167,7 +169,27 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ route }) => {
   };
 
   const renderMenuItem = ({ item }: { item: MenuItem }) => (
-    <View style={styles.card}>
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() => {
+        try {
+          console.log(
+            "MenuScreen: Chuẩn bị chuyển đến ProductDetails với ID:",
+            item.id.toString()
+          );
+          console.log("MenuScreen: Loại dữ liệu ID:", typeof item.id);
+
+          // Sử dụng hàm navigate trực tiếp từ navigation
+          navigation.navigate("ProductDetails", {
+            productId: item.id.toString(),
+          });
+
+          console.log("MenuScreen: Đã gọi navigate");
+        } catch (error) {
+          console.error("MenuScreen: Lỗi khi chuyển trang:", error);
+        }
+      }}
+    >
       <Image
         source={{ uri: item.imageUrl || "https://via.placeholder.com/150" }}
         style={styles.cardImage}
@@ -186,21 +208,26 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ route }) => {
                 currency: "VND",
               })}
             </Text>
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={() => addToCart(item)}
-              disabled={addingToCart === item.id.toString()}
-            >
-              {addingToCart === item.id.toString() ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.addButtonText}>+</Text>
-              )}
-            </TouchableOpacity>
+            {!isAdmin() && (
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  addToCart(item);
+                }}
+                disabled={addingToCart === item.id.toString()}
+              >
+                {addingToCart === item.id.toString() ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.addButtonText}>+</Text>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   if (loading) {
