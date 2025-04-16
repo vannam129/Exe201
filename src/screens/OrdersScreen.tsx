@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Modal,
+  ScrollView,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
@@ -23,6 +25,10 @@ type OrdersScreenNavigationProp = StackNavigationProp<
 const OrdersScreen: React.FC = () => {
   const [orders, setOrders] = useState<OrderResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedOrder, setSelectedOrder] = useState<OrderResponse | null>(
+    null
+  );
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
   const navigation = useNavigation<OrdersScreenNavigationProp>();
   const { isAuthenticated, getUserId } = useAuth();
 
@@ -272,9 +278,7 @@ const OrdersScreen: React.FC = () => {
     return (
       <TouchableOpacity
         style={styles.orderItem}
-        onPress={() =>
-          navigation.navigate("OrderDetails", { orderId: item.orderId })
-        }
+        onPress={() => handleViewOrderDetails(item)}
       >
         <View style={styles.orderHeader}>
           <Text style={styles.orderId}>
@@ -331,6 +335,169 @@ const OrdersScreen: React.FC = () => {
     );
   };
 
+  const handleViewOrderDetails = (order: OrderResponse) => {
+    setSelectedOrder(order);
+    setDetailModalVisible(true);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "Delivered":
+        return "#4CAF50"; // Green
+      case "Shipped":
+        return "#2196F3"; // Blue
+      case "Pending":
+      case "Processing":
+        return "#FFC107"; // Amber
+      case "Cancelled":
+        return "#F44336"; // Red
+      default:
+        return "#757575"; // Grey
+    }
+  };
+
+  const renderOrderDetailModal = () => {
+    if (!selectedOrder) return null;
+
+    return (
+      <Modal
+        visible={detailModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setDetailModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              Chi tiết đơn hàng #{selectedOrder.orderId.substr(0, 8)}
+            </Text>
+
+            <ScrollView>
+              <View style={styles.orderDetailSection}>
+                <Text style={styles.sectionTitle}>Thông tin chung</Text>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Mã đơn hàng:</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedOrder.orderId}
+                  </Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Trạng thái:</Text>
+                  <View
+                    style={[
+                      styles.statusBadgeSmall,
+                      {
+                        backgroundColor: getStatusColor(
+                          selectedOrder.orderStatus ||
+                            selectedOrder.status ||
+                            ""
+                        ),
+                      },
+                    ]}
+                  >
+                    <Text style={styles.statusTextSmall}>
+                      {formatOrderStatus(
+                        selectedOrder.orderStatus || selectedOrder.status || ""
+                      )}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Ngày đặt:</Text>
+                  <Text style={styles.detailValue}>
+                    {formatDate(selectedOrder.orderDate)}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.orderDetailSection}>
+                <Text style={styles.sectionTitle}>Thông tin người nhận</Text>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Họ tên:</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedOrder.consigneeName}
+                  </Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Số điện thoại:</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedOrder.phoneNumber}
+                  </Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>Địa chỉ:</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedOrder.deliverAddress}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.orderDetailSection}>
+                <Text style={styles.sectionTitle}>Chi tiết sản phẩm</Text>
+
+                {selectedOrder.orderDetails &&
+                typeof selectedOrder.orderDetails === "object" &&
+                "$values" in selectedOrder.orderDetails &&
+                selectedOrder.orderDetails.$values &&
+                selectedOrder.orderDetails.$values.length > 0 ? (
+                  selectedOrder.orderDetails.$values.map(
+                    (item: any, index: number) => (
+                      <View
+                        key={item.orderDetailId || index}
+                        style={styles.productItem}
+                      >
+                        <View style={styles.productInfo}>
+                          <Text style={styles.productName}>
+                            {item.productName ||
+                              `Sản phẩm ID: ${item.productId}`}
+                          </Text>
+                          <Text style={styles.productQuantity}>
+                            Số lượng:{" "}
+                            {item.quantity || item.productQuantity || 0}
+                          </Text>
+                          {item.price && (
+                            <Text style={styles.productPrice}>
+                              Đơn giá:{" "}
+                              {item.price.toLocaleString("vi-VN", {
+                                style: "currency",
+                                currency: "VND",
+                              })}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                    )
+                  )
+                ) : (
+                  <Text style={styles.emptyText}>
+                    Không có thông tin chi tiết sản phẩm
+                  </Text>
+                )}
+              </View>
+
+              <View style={styles.orderDetailSection}>
+                <Text style={styles.sectionTitle}>Tổng tiền đơn hàng</Text>
+                <Text style={styles.totalAmount}>
+                  {calculateOrderTotal(selectedOrder).toLocaleString("vi-VN", {
+                    style: "currency",
+                    currency: "VND",
+                  })}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => setDetailModalVisible(false)}
+              >
+                <Text style={styles.closeButtonText}>Đóng</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -376,6 +543,7 @@ const OrdersScreen: React.FC = () => {
         keyExtractor={(item) => item.orderId}
         contentContainerStyle={styles.listContainer}
       />
+      {renderOrderDetailModal()}
     </View>
   );
 };
@@ -498,6 +666,107 @@ const styles = StyleSheet.create({
   phoneNumber: {
     fontSize: 14,
     color: "#666",
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    padding: 20,
+    width: "90%",
+    maxHeight: "90%",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 16,
+    textAlign: "center",
+    color: "#333",
+  },
+  orderDetailSection: {
+    marginBottom: 20,
+    backgroundColor: "#f9f9f9",
+    borderRadius: 8,
+    padding: 14,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#eee",
+    paddingBottom: 5,
+  },
+  detailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  detailLabel: {
+    fontWeight: "bold",
+    fontSize: 14,
+    color: "#666",
+  },
+  detailValue: {
+    fontSize: 14,
+    maxWidth: "60%",
+    textAlign: "right",
+  },
+  productItem: {
+    backgroundColor: "#fff",
+    borderRadius: 6,
+    padding: 12,
+    marginVertical: 6,
+    borderLeftWidth: 3,
+    borderLeftColor: "#2196F3",
+  },
+  productInfo: {
+    flex: 1,
+  },
+  productName: {
+    fontSize: 15,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  productQuantity: {
+    fontSize: 14,
+    color: "#666",
+  },
+  productPrice: {
+    fontSize: 14,
+    color: "#f50",
+    marginTop: 2,
+  },
+  totalAmount: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#f50",
+    textAlign: "center",
+  },
+  statusBadgeSmall: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  statusTextSmall: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  closeButton: {
+    backgroundColor: "#f0f0f0",
+    borderRadius: 6,
+    paddingVertical: 12,
+    alignItems: "center",
+    marginTop: 10,
+  },
+  closeButtonText: {
+    color: "#333",
+    fontWeight: "bold",
   },
 });
 

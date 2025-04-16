@@ -56,7 +56,7 @@ const ProductManagerScreen = () => {
       const productsData = await api.getProducts();
       setProducts(productsData);
     } catch (error) {
-      console.error("Error fetching products:", error);
+      console.error("Lỗi khi tải danh sách sản phẩm:", error);
       Alert.alert("Lỗi", "Không thể tải danh sách sản phẩm.");
     } finally {
       setLoading(false);
@@ -68,7 +68,7 @@ const ProductManagerScreen = () => {
       const categoriesData = await api.getCategories();
       setCategories(categoriesData);
     } catch (error) {
-      console.error("Error fetching categories:", error);
+      console.error("Lỗi khi tải danh sách danh mục:", error);
       Alert.alert("Lỗi", "Không thể tải danh sách danh mục.");
     }
   };
@@ -117,7 +117,7 @@ const ProductManagerScreen = () => {
               setProducts(products.filter((p) => p.id !== product.id));
               Alert.alert("Thành công", "Đã xóa sản phẩm.");
             } catch (error) {
-              console.error("Error deleting product:", error);
+              console.error("Lỗi khi xóa sản phẩm:", error);
               Alert.alert("Lỗi", "Không thể xóa sản phẩm.");
             }
           },
@@ -194,7 +194,7 @@ const ProductManagerScreen = () => {
 
       setIsModalVisible(false);
     } catch (error) {
-      console.error("Error saving product:", error);
+      console.error("Lỗi khi lưu sản phẩm:", error);
       Alert.alert("Lỗi", "Không thể lưu sản phẩm.");
     }
   };
@@ -236,7 +236,7 @@ const ProductManagerScreen = () => {
     try {
       await Promise.all([fetchProducts(), fetchCategories()]);
     } catch (error) {
-      console.error("Error refreshing data:", error);
+      console.error("Lỗi khi làm mới dữ liệu:", error);
       Alert.alert("Lỗi", "Không thể tải lại dữ liệu.");
     } finally {
       setRefreshing(false);

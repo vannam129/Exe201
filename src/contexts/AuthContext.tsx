@@ -30,7 +30,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Check for existing token on startup
+  // Kiểm tra token đã tồn tại khi khởi động
   useEffect(() => {
     const checkToken = async () => {
       try {
@@ -42,7 +42,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           setIsAuthenticated(true);
         }
       } catch (error) {
-        console.error("Error loading auth state", error);
+        console.error("Lỗi khi tải trạng thái xác thực", error);
       } finally {
         setIsLoading(false);
       }
@@ -172,8 +172,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         console.error("AuthContext: Lỗi khi kiểm tra user_data đã lưu:", e);
       }
     } catch (error: any) {
-      const errorMessage = error.message || "Login failed";
-      console.error("Login error in AuthContext:", errorMessage, error);
+      const errorMessage = error.message || "Đăng nhập thất bại";
+      console.error("Lỗi đăng nhập trong AuthContext:", errorMessage, error);
       setError(errorMessage);
       throw error;
     } finally {
@@ -191,14 +191,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setError(null);
 
     try {
-      console.log("AuthContext: Calling register API for", email);
+      console.log("AuthContext: Gọi API đăng ký cho", email);
       const response = await api.register({
         email,
         password,
         phone,
         fullName,
       });
-      console.log("AuthContext: Register response received", response);
+      console.log("AuthContext: Nhận phản hồi đăng ký", response);
 
       // Trả về kết quả thành công mà không đăng nhập tự động
       // Yêu cầu người dùng xác thực email trước khi đăng nhập
@@ -208,8 +208,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           "Đăng ký thành công! Vui lòng xác thực email trước khi đăng nhập.",
       };
     } catch (error: any) {
-      const errorMessage = error.message || "Registration failed";
-      console.error("Register error in AuthContext:", errorMessage, error);
+      const errorMessage = error.message || "Đăng ký thất bại";
+      console.error("Lỗi đăng ký trong AuthContext:", errorMessage, error);
       setError(errorMessage);
       throw error;
     } finally {
@@ -225,7 +225,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setUser(null);
       setIsAuthenticated(false);
     } catch (error) {
-      console.error("Logout error", error);
+      console.error("Lỗi đăng xuất", error);
     }
   };
 
@@ -258,7 +258,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
+    throw new Error("useAuth phải được sử dụng trong AuthProvider");
   }
   return context;
 };

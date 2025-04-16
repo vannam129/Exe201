@@ -67,10 +67,10 @@ const OrderManagerScreen = () => {
         // Sắp xếp đơn hàng theo thứ tự ưu tiên
         setOrders(sortOrders(ordersData));
       } catch (fetchError) {
-        console.error("Error using fetchAllOrders:", fetchError);
+        console.error("Lỗi khi sử dụng fetchAllOrders:", fetchError);
 
         // Fallback: Sử dụng getUserOrders của admin account nếu fetchAllOrders thất bại
-        console.log("Falling back to admin user orders");
+        console.log("Quay lại sử dụng đơn hàng của quản trị viên");
         try {
           // Tìm userId có role là Admin từ data
           const adminId = "2e2b29dd-6c2d-4dc6-b1cf-8f900c124d0d"; // ID người dùng admin trong dữ liệu
@@ -97,18 +97,18 @@ const OrderManagerScreen = () => {
             setOrders(sortOrders(ordersData));
           } else {
             console.warn(
-              "Failed to fetch orders:",
-              response?.message || "Unknown error"
+              "Không thể tải đơn hàng:",
+              response?.message || "Lỗi không xác định"
             );
             setOrders([]);
           }
         } catch (error) {
-          console.error("Error fetching admin orders:", error);
+          console.error("Lỗi khi tải đơn hàng của quản trị viên:", error);
           setOrders([]);
         }
       }
     } catch (error) {
-      console.error("Error fetching orders:", error);
+      console.error("Lỗi khi tải đơn hàng:", error);
       Alert.alert("Lỗi", "Không thể tải danh sách đơn hàng.");
       setOrders([]);
     } finally {
@@ -178,7 +178,7 @@ const OrderManagerScreen = () => {
               if (newStatus === "Cancelled") {
                 // Gọi API xóa đơn hàng
                 const response = await api.deleteOrder(order.orderId);
-                console.log("Delete order response:", response);
+                console.log("Phản hồi xóa đơn hàng:", response);
 
                 // Cập nhật local state (lọc order đã xóa khỏi danh sách)
                 const updatedOrders = orders.filter(
@@ -231,7 +231,7 @@ const OrderManagerScreen = () => {
                 Alert.alert("Thành công", "Đã cập nhật trạng thái đơn hàng.");
               }
             } catch (error: any) {
-              console.error("Error updating order:", error);
+              console.error("Lỗi khi cập nhật đơn hàng:", error);
               Alert.alert(
                 "Lỗi",
                 error.message || "Không thể thực hiện yêu cầu."

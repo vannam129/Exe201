@@ -33,7 +33,7 @@ export type RootStackParamList = {
   Home: undefined;
   Menu: { category?: string; categoryId?: string | number };
   Cart: undefined;
-  Orders: undefined;
+  Orders: { refreshOrders?: boolean; lastOrderTotal?: number } | undefined;
   OrderDetails: { orderId: string };
   Profile: undefined;
   OrderDetail: { orderId: string };
@@ -41,6 +41,9 @@ export type RootStackParamList = {
   ProductManager: undefined;
   CategoryManager: undefined;
   MainTabs: undefined;
+  ProductDetails: { productId: string };
+  ForgotPassword: undefined;
+  Search: { query?: string; categoryId?: string };
 };
 
 const Stack = createStackNavigator<RootStackParamList>();
@@ -84,29 +87,29 @@ const MainTabs = () => {
       <Tab.Screen
         name="Home"
         component={HomeScreen}
-        options={{ headerShown: false }}
+        options={{ headerShown: false, title: "Trang chủ" }}
       />
       <Tab.Screen
         name="Menu"
         component={MenuScreen}
-        options={{ headerShown: false }}
+        options={{ headerShown: false, title: "Thực đơn" }}
       />
       {!isAdmin() && (
         <Tab.Screen
           name="Cart"
           component={CartScreen}
-          options={{ headerShown: false }}
+          options={{ headerShown: false, title: "Giỏ hàng" }}
         />
       )}
       <Tab.Screen
         name="Orders"
         component={OrdersScreen}
-        options={{ headerShown: false }}
+        options={{ headerShown: false, title: "Đơn hàng" }}
       />
       <Tab.Screen
         name="Profile"
         component={ProfileScreen}
-        options={{ headerShown: false }}
+        options={{ headerShown: false, title: "Cá nhân" }}
       />
     </Tab.Navigator>
   );

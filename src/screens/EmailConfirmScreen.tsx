@@ -29,7 +29,7 @@ const EmailConfirmScreen = () => {
 
   const handleConfirm = async () => {
     if (!token.trim()) {
-      Alert.alert("Error", "Please enter the confirmation code");
+      Alert.alert("Lỗi", "Vui lòng nhập mã xác nhận");
       return;
     }
 
@@ -40,11 +40,11 @@ const EmailConfirmScreen = () => {
 
       setIsConfirmed(true);
       Alert.alert(
-        "Success",
-        "Your email has been confirmed successfully! You can now login.",
+        "Thành công",
+        "Email của bạn đã được xác nhận thành công! Bạn có thể đăng nhập ngay bây giờ.",
         [
           {
-            text: "Login",
+            text: "Đăng nhập",
             onPress: () => navigation.navigate("Login" as never),
           },
         ]
@@ -52,8 +52,9 @@ const EmailConfirmScreen = () => {
     } catch (error: any) {
       console.error("Email confirmation error:", error);
       const errorMessage =
-        error.response?.data?.message || "Invalid or expired confirmation code";
-      Alert.alert("Error", errorMessage);
+        error.response?.data?.message ||
+        "Mã xác nhận không hợp lệ hoặc đã hết hạn";
+      Alert.alert("Lỗi", errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -61,7 +62,7 @@ const EmailConfirmScreen = () => {
 
   const handleResendCode = async () => {
     if (!email) {
-      Alert.alert("Error", "Email address is missing");
+      Alert.alert("Lỗi", "Thiếu địa chỉ email");
       return;
     }
 
@@ -69,14 +70,14 @@ const EmailConfirmScreen = () => {
     try {
       await api.resendConfirmationCode(email);
       Alert.alert(
-        "Success",
-        "A new confirmation code has been sent to your email"
+        "Thành công",
+        "Một mã xác nhận mới đã được gửi đến email của bạn"
       );
     } catch (error: any) {
       console.error("Resend code error:", error);
       const errorMessage =
-        error.response?.data?.message || "Failed to resend confirmation code";
-      Alert.alert("Error", errorMessage);
+        error.response?.data?.message || "Không thể gửi lại mã xác nhận";
+      Alert.alert("Lỗi", errorMessage);
     } finally {
       setIsResending(false);
     }
@@ -89,16 +90,16 @@ const EmailConfirmScreen = () => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Email Confirmation</Text>
+        <Text style={styles.title}>Xác Nhận Email</Text>
         <Text style={styles.subtitle}>
-          Please enter the confirmation code sent to:
+          Vui lòng nhập mã xác nhận đã được gửi đến:
         </Text>
         <Text style={styles.emailText}>{email}</Text>
       </View>
 
       <View style={styles.form}>
         <Input
-          placeholder="Enter confirmation code"
+          placeholder="Nhập mã xác nhận"
           value={token}
           onChangeText={setToken}
           leftIcon={{ type: "font-awesome", name: "key", color: "#8CC63F" }}
@@ -108,7 +109,7 @@ const EmailConfirmScreen = () => {
         />
 
         <Button
-          title={isLoading ? "Verifying..." : "Verify Email"}
+          title={isLoading ? "Đang xác thực..." : "Xác Thực Email"}
           buttonStyle={[styles.button, styles.verifyButton]}
           onPress={handleConfirm}
           loading={isLoading}
@@ -118,7 +119,7 @@ const EmailConfirmScreen = () => {
         {!isConfirmed && (
           <>
             <Button
-              title={isResending ? "Resending..." : "Resend Code"}
+              title={isResending ? "Đang gửi lại..." : "Gửi Lại Mã"}
               type="outline"
               buttonStyle={styles.button}
               titleStyle={{ color: "#8CC63F" }}
@@ -132,7 +133,7 @@ const EmailConfirmScreen = () => {
               onPress={openMailApp}
               disabled={isLoading || isResending}
             >
-              <Text style={styles.openMailText}>Open Email App</Text>
+              <Text style={styles.openMailText}>Mở Ứng Dụng Email</Text>
             </TouchableOpacity>
           </>
         )}
@@ -142,7 +143,7 @@ const EmailConfirmScreen = () => {
             onPress={() => navigation.navigate("Login" as never)}
             disabled={isLoading || isResending}
           >
-            <Text style={styles.linkText}>Back to Login</Text>
+            <Text style={styles.linkText}>Quay Lại Đăng Nhập</Text>
           </TouchableOpacity>
         </View>
       </View>

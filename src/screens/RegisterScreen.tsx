@@ -17,26 +17,26 @@ const RegisterScreen = () => {
 
   const validateInputs = () => {
     if (!fullName || !email || !phone || !password) {
-      Alert.alert("Error", "All fields are required");
+      Alert.alert("Lỗi", "Tất cả các trường đều bắt buộc");
       return false;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert("Error", "Passwords do not match");
+      Alert.alert("Lỗi", "Mật khẩu không khớp");
       return false;
     }
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      Alert.alert("Error", "Please enter a valid email address");
+      Alert.alert("Lỗi", "Vui lòng nhập địa chỉ email hợp lệ");
       return false;
     }
 
     // Validate phone format (simple check for numbers only)
     const phoneRegex = /^\d{10}$/;
     if (!phoneRegex.test(phone)) {
-      Alert.alert("Error", "Please enter a valid 10-digit phone number");
+      Alert.alert("Lỗi", "Vui lòng nhập số điện thoại 10 chữ số hợp lệ");
       return false;
     }
 
@@ -70,7 +70,7 @@ const RegisterScreen = () => {
         ]
       );
     } catch (error: any) {
-      console.error("Registration error:", error);
+      console.error("Lỗi đăng ký:", error);
       const errorMessage =
         error.response?.data?.message ||
         "Đăng ký thất bại. Vui lòng thử lại sau.";
@@ -83,13 +83,13 @@ const RegisterScreen = () => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Food Order App</Text>
-        <Text style={styles.subtitle}>Create a new account</Text>
+        <Text style={styles.title}>Balama App</Text>
+        <Text style={styles.subtitle}>Tạo tài khoản mới</Text>
       </View>
 
       <View style={styles.form}>
         <Input
-          placeholder="Full Name"
+          placeholder="Họ và tên"
           value={fullName}
           onChangeText={setFullName}
           leftIcon={{ type: "font-awesome", name: "user", color: "#8CC63F" }}
@@ -114,7 +114,7 @@ const RegisterScreen = () => {
         />
 
         <Input
-          placeholder="Phone (10 digits)"
+          placeholder="Số điện thoại (10 chữ số)"
           value={phone}
           onChangeText={setPhone}
           leftIcon={{ type: "font-awesome", name: "phone", color: "#8CC63F" }}
@@ -125,7 +125,7 @@ const RegisterScreen = () => {
         />
 
         <Input
-          placeholder="Password"
+          placeholder="Mật khẩu"
           value={password}
           onChangeText={setPassword}
           leftIcon={{ type: "font-awesome", name: "lock", color: "#8CC63F" }}
@@ -135,7 +135,7 @@ const RegisterScreen = () => {
         />
 
         <Input
-          placeholder="Confirm Password"
+          placeholder="Xác nhận mật khẩu"
           value={confirmPassword}
           onChangeText={setConfirmPassword}
           leftIcon={{ type: "font-awesome", name: "lock", color: "#8CC63F" }}
@@ -145,7 +145,7 @@ const RegisterScreen = () => {
         />
 
         <Button
-          title={isLoading ? "Creating Account..." : "Register"}
+          title={isLoading ? "Đang tạo tài khoản..." : "Đăng ký"}
           buttonStyle={styles.registerButton}
           onPress={handleRegister}
           loading={isLoading}
@@ -153,12 +153,12 @@ const RegisterScreen = () => {
         />
 
         <View style={styles.loginContainer}>
-          <Text style={styles.loginText}>Already have an account? </Text>
+          <Text style={styles.loginText}>Đã có tài khoản? </Text>
           <TouchableOpacity
             onPress={() => navigation.navigate("Login" as never)}
             disabled={isLoading}
           >
-            <Text style={styles.loginLink}>Login</Text>
+            <Text style={styles.loginLink}>Đăng nhập</Text>
           </TouchableOpacity>
         </View>
       </View>

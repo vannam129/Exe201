@@ -48,7 +48,7 @@ const CategoryManagerScreen = () => {
       const data = await api.getCategories();
       setCategories(data);
     } catch (error) {
-      console.error("Error fetching categories:", error);
+      console.error("Lỗi khi tải danh mục:", error);
       Alert.alert("Lỗi", "Không thể tải danh sách danh mục.");
     } finally {
       setLoading(false);
@@ -89,7 +89,7 @@ const CategoryManagerScreen = () => {
               setCategories(categories.filter((c) => c.id !== category.id));
               Alert.alert("Thành công", "Đã xóa danh mục.");
             } catch (error) {
-              console.error("Error deleting category:", error);
+              console.error("Lỗi khi xóa danh mục:", error);
               Alert.alert("Lỗi", "Không thể xóa danh mục.");
             }
           },
@@ -140,7 +140,7 @@ const CategoryManagerScreen = () => {
 
       setModalVisible(false);
     } catch (error) {
-      console.error("Error saving category:", error);
+      console.error("Lỗi khi lưu danh mục:", error);
       Alert.alert("Lỗi", "Không thể lưu danh mục.");
     }
   };
@@ -150,7 +150,7 @@ const CategoryManagerScreen = () => {
     try {
       await fetchCategories();
     } catch (error) {
-      console.error("Error refreshing categories:", error);
+      console.error("Lỗi khi làm mới danh mục:", error);
       Alert.alert("Lỗi", "Không thể tải lại danh sách danh mục.");
     } finally {
       setRefreshing(false);

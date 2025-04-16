@@ -49,7 +49,7 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ route }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [addingToCart, setAddingToCart] = useState<string | null>(null);
-  const category = route?.params?.category || "All";
+  const category = route?.params?.category || "Tất cả";
   const categoryId = route?.params?.categoryId;
   const { isAuthenticated, user, getUserId } = useAuth();
   const navigation = useNavigation();
@@ -61,18 +61,18 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ route }) => {
 
       if (categoryId) {
         console.log(
-          `[DEBUG] Fetching products for categoryId: ${categoryId}, category name: ${category}`
+          `[DEBUG] Đang tải sản phẩm cho danh mục: ${categoryId}, tên danh mục: ${category}`
         );
         const response = await api.getProductsByCategory(categoryId.toString());
 
         console.log(
-          `[DEBUG] Found ${response.length} products for category: ${category}`
+          `[DEBUG] Tìm thấy ${response.length} sản phẩm cho danh mục: ${category}`
         );
         if (response.length === 0) {
-          console.log("[DEBUG] No products found. This might be an issue.");
+          console.log("[DEBUG] Không tìm thấy sản phẩm nào. Có thể có vấn đề.");
         } else {
           console.log(
-            "[DEBUG] Products found:",
+            "[DEBUG] Các sản phẩm tìm thấy:",
             response.map((p) => ({
               id: p.id,
               name: p.name,
@@ -83,15 +83,15 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ route }) => {
 
         setMenuItems(response);
       } else {
-        console.log("[DEBUG] Fetching all products");
+        console.log("[DEBUG] Đang tải tất cả sản phẩm");
         const response = await api.getProducts();
 
-        console.log(`[DEBUG] Found ${response.length} products`);
+        console.log(`[DEBUG] Tìm thấy ${response.length} sản phẩm`);
         if (response.length === 0) {
-          console.log("[DEBUG] No products found. This might be an issue.");
+          console.log("[DEBUG] Không tìm thấy sản phẩm nào. Có thể có vấn đề.");
         } else {
           console.log(
-            "[DEBUG] Products found:",
+            "[DEBUG] Các sản phẩm tìm thấy:",
             response.map((p) => ({
               id: p.id,
               name: p.name,
@@ -103,15 +103,15 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ route }) => {
         setMenuItems(response);
       }
     } catch (error) {
-      console.error("[DEBUG] Error details:", {
+      console.error("[DEBUG] Chi tiết lỗi:", {
         error,
-        message: error instanceof Error ? error.message : "Unknown error",
+        message: error instanceof Error ? error.message : "Lỗi không xác định",
         categoryId,
         category,
       });
       Alert.alert(
-        "Error",
-        "Could not load menu items. Please try again later."
+        "Lỗi",
+        "Không thể tải danh sách món ăn. Vui lòng thử lại sau."
       );
     } finally {
       setLoading(false);
@@ -130,10 +130,17 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ route }) => {
 
   const addToCart = async (item: MenuItem) => {
     if (!isAuthenticated || !user) {
-      Alert.alert("Login Required", "Please login to add items to cart", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Login", onPress: () => navigation.navigate("Login" as never) },
-      ]);
+      Alert.alert(
+        "Yêu cầu đăng nhập",
+        "Vui lòng đăng nhập để thêm món vào giỏ hàng",
+        [
+          { text: "Hủy", style: "cancel" },
+          {
+            text: "Đăng nhập",
+            onPress: () => navigation.navigate("Login" as never),
+          },
+        ]
+      );
       return;
     }
 
@@ -141,16 +148,19 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ route }) => {
       setAddingToCart(item.id.toString());
       const userId = await getUserId();
       await api.addToCart(userId, item.id.toString(), 1);
-      Alert.alert("Success", `Added ${item.name} to cart`, [
-        { text: "Continue Shopping", style: "cancel" },
+      Alert.alert("Thành công", `Đã thêm ${item.name} vào giỏ hàng`, [
+        { text: "Tiếp tục mua sắm", style: "cancel" },
         {
-          text: "View Cart",
+          text: "Xem giỏ hàng",
           onPress: () => navigation.navigate("Cart" as never),
         },
       ]);
     } catch (error) {
-      console.error("Error adding to cart:", error);
-      Alert.alert("Error", "Could not add item to cart. Please try again.");
+      console.error("Lỗi khi thêm vào giỏ hàng:", error);
+      Alert.alert(
+        "Lỗi",
+        "Không thể thêm món vào giỏ hàng. Vui lòng thử lại sau."
+      );
     } finally {
       setAddingToCart(null);
     }
@@ -167,7 +177,7 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ route }) => {
         <View style={styles.cardContent}>
           <Text style={styles.cardTitle}>{item.name}</Text>
           <Text style={styles.cardDescription} numberOfLines={2}>
-            {item.description || "No description"}
+            {item.description || "Không có mô tả"}
           </Text>
           <View style={styles.cardFooter}>
             <Text style={styles.cardPrice}>
@@ -205,7 +215,7 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ route }) => {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.categoryTitle}>{category}</Text>
-        <Text style={styles.itemCount}>{menuItems.length} items</Text>
+        <Text style={styles.itemCount}>{menuItems.length} món</Text>
       </View>
 
       {menuItems.length > 0 ? (
@@ -222,7 +232,7 @@ const MenuScreen: React.FC<MenuScreenProps> = ({ route }) => {
       ) : (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>
-            No menu items found for this category
+            Không tìm thấy món ăn nào cho danh mục này
           </Text>
         </View>
       )}

@@ -139,8 +139,8 @@ const LoginScreen = () => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Food Order App</Text>
-        <Text style={styles.subtitle}>Login to your account</Text>
+        <Text style={styles.title}>Balama App</Text>
+        <Text style={styles.subtitle}>Đăng nhập tài khoản</Text>
       </View>
 
       <View style={styles.form}>
@@ -158,7 +158,7 @@ const LoginScreen = () => {
           keyboardType="email-address"
         />
         <Input
-          placeholder="Password"
+          placeholder="Mật khẩu"
           value={password}
           onChangeText={setPassword}
           leftIcon={{ type: "font-awesome", name: "lock", color: "#8CC63F" }}
@@ -169,7 +169,7 @@ const LoginScreen = () => {
         {errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
 
         <Button
-          title="Login"
+          title="Đăng nhập"
           buttonStyle={styles.loginButton}
           onPress={handleLogin}
           loading={loading}
@@ -177,11 +177,11 @@ const LoginScreen = () => {
         />
 
         <View style={styles.registerContainer}>
-          <Text style={styles.registerText}>Don't have an account? </Text>
+          <Text style={styles.registerText}>Chưa có tài khoản? </Text>
           <TouchableOpacity
             onPress={() => navigation.navigate("Register" as never)}
           >
-            <Text style={styles.registerLink}>Register</Text>
+            <Text style={styles.registerLink}>Đăng ký</Text>
           </TouchableOpacity>
         </View>
       </View>

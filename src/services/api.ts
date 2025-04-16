@@ -463,41 +463,11 @@ export const api = {
   // Xóa sản phẩm khỏi giỏ hàng
   removeFromCart: async (userId: string, productId: string) => {
     try {
-      console.log('Removing product from cart:', { userId, productId });
-      
       // Lấy token xác thực
       const token = await AsyncStorage.getItem('auth_token');
       
-      // Kiểm tra dữ liệu đầu vào
-      if (!userId) {
-        throw new Error("User ID không được để trống");
-      }
+      console.log(`Removing product ${productId} from cart for user ${userId}`);
       
-      if (!productId) {
-        throw new Error("Product ID không được để trống");
-      }
-      
-      // Lấy cartId từ AsyncStorage
-      let cartId = await AsyncStorage.getItem(`cart_id_${userId}`);
-      
-      // Nếu không có cartId, gọi API để lấy thông tin giỏ hàng
-      if (!cartId) {
-        console.log('CartId not found in AsyncStorage, fetching from API...');
-        const cartResponse = await api.getCart(userId);
-        if (cartResponse && cartResponse.isSuccess && cartResponse.data) {
-          cartId = cartResponse.data.cartId;
-        }
-      }
-      
-      // Nếu vẫn không có cartId, sử dụng giá trị mặc định
-      if (!cartId) {
-        console.warn('CartId not available, using default value');
-        cartId = "a18993c1-823a-4ac8-be6a-c124b551fba0";
-      }
-      
-      console.log('Using cartId for removal:', cartId);
-      
-      // Tạo instance API client
       const apiClient = axios.create({
         baseURL: API_URL,
         headers: {
@@ -507,34 +477,56 @@ export const api = {
         }
       });
       
-      // Cấu trúc body theo Swagger, với quantity = 0 để xoá
-      const removeBody = {
-        cartId: cartId,
-        productId: productId,
-        quantity: 0
-      };
-      
-      // Sửa URL endpoint, userId là query parameter
-      console.log("Sending removal request to URL:", `${API_URL}/api/Cart?userId=${userId}`);
-      console.log("Request body:", removeBody);
-      
-      // Gọi API xóa sản phẩm khỏi giỏ hàng (PUT với quantity=0)
-      const response = await apiClient.put(`/api/Cart?userId=${userId}`, removeBody);
+      // API xóa sản phẩm khỏi giỏ hàng theo cấu trúc mới
+      const response = await apiClient.delete(`/api/Cart/remove?userId=${userId}&productId=${productId}`);
       
       console.log('Remove from cart response:', response.data);
       
-      if (response.data && response.data.isSuccess === false) {
-        throw new Error(response.data.message || 'Không thể xóa sản phẩm khỏi giỏ hàng');
-      }
-      
-      return response.data;
+      return {
+        isSuccess: true,
+        message: 'Đã xóa sản phẩm khỏi giỏ hàng'
+      };
     } catch (error: any) {
       console.error('Error removing from cart:', error);
-      if (error.response && error.response.data) {
+      if (error.response) {
         console.error('API error response:', error.response.data);
-        throw new Error(error.response.data.message || 'Lỗi từ server');
       }
-      throw error;
+      throw new Error(error.message || 'Không thể xóa sản phẩm khỏi giỏ hàng');
+    }
+  },
+  
+  // Xóa toàn bộ giỏ hàng
+  clearCart: async (userId: string) => {
+    try {
+      // Lấy token xác thực
+      const token = await AsyncStorage.getItem('auth_token');
+      
+      console.log(`Clearing entire cart for user ${userId}`);
+      
+      const apiClient = axios.create({
+        baseURL: API_URL,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        }
+      });
+      
+      // Gọi API xóa toàn bộ giỏ hàng
+      const response = await apiClient.delete(`/api/Cart/clear?userId=${userId}`);
+      
+      console.log('Clear cart response:', response.data);
+      
+      return {
+        isSuccess: true,
+        message: 'Đã xóa toàn bộ giỏ hàng'
+      };
+    } catch (error: any) {
+      console.error('Error clearing cart:', error);
+      if (error.response) {
+        console.error('API error response:', error.response.data);
+      }
+      throw new Error(error.message || 'Không thể xóa toàn bộ giỏ hàng');
     }
   },
   

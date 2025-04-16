@@ -75,13 +75,13 @@ const HomeScreen = () => {
     try {
       // Fetch products from /api/Product
       const products = await api.getProducts();
-      console.log("Products response:", products);
+      console.log("Phản hồi sản phẩm:", products);
 
       // Lấy 5 sản phẩm đầu tiên làm Popular Items
       if (products && products.length > 0) {
         setPopularItems(products.slice(0, 5));
         console.log(
-          "Popular products from API:",
+          "Sản phẩm phổ biến từ API:",
           products
             .slice(0, 5)
             .map((p) => p.name)
@@ -92,7 +92,7 @@ const HomeScreen = () => {
       // Fetch categories
       const categories = await api.getCategories();
       console.log(
-        "HomeScreen received categories:",
+        "HomeScreen nhận được danh mục:",
         categories.map((c) => `${c.name} (${c.id})`).join(", ")
       );
 
@@ -100,7 +100,7 @@ const HomeScreen = () => {
         setCategories(categories);
       }
     } catch (error) {
-      console.error("Error fetching data", error);
+      console.error("Lỗi khi tải dữ liệu", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -124,7 +124,7 @@ const HomeScreen = () => {
     str = String(str).replace(/=+$/, "");
 
     if (str.length % 4 === 1) {
-      throw new Error("Invalid base64 string");
+      throw new Error("Chuỗi base64 không hợp lệ");
     }
 
     for (
@@ -161,14 +161,14 @@ const HomeScreen = () => {
       let userId = "";
       try {
         userId = await getUserId();
-        console.log("Using userId from AuthContext getUserId:", userId);
+        console.log("Sử dụng userId từ AuthContext getUserId:", userId);
       } catch (error) {
-        console.error("Error getting userId from AuthContext:", error);
+        console.error("Lỗi khi lấy userId từ AuthContext:", error);
 
         // Fallback: Lấy từ user object
         if (user && user.id) {
           userId = user.id.toString();
-          console.log("Using userId from user object fallback:", userId);
+          console.log("Sử dụng userId từ user object fallback:", userId);
         }
 
         // Nếu vẫn không có, thử lấy từ AsyncStorage
@@ -179,12 +179,12 @@ const HomeScreen = () => {
               const parsedUser = JSON.parse(userData);
               if (parsedUser && parsedUser.id) {
                 userId = parsedUser.id.toString();
-                console.log("Using userId from AsyncStorage fallback:", userId);
+                console.log("Sử dụng userId từ AsyncStorage fallback:", userId);
               }
             }
           } catch (storageError) {
             console.error(
-              "Error getting user data from AsyncStorage:",
+              "Lỗi khi lấy dữ liệu người dùng từ AsyncStorage:",
               storageError
             );
           }
@@ -203,9 +203,9 @@ const HomeScreen = () => {
 
       // Lấy productId từ sản phẩm được chọn
       const productId = item.id.toString();
-      console.log("Using productId from selected item:", productId);
+      console.log("Sử dụng productId từ sản phẩm đã chọn:", productId);
 
-      console.log("Final cart data:", {
+      console.log("Dữ liệu giỏ hàng cuối cùng:", {
         userId,
         productId,
         quantity: 1,
@@ -213,14 +213,14 @@ const HomeScreen = () => {
 
       // Gọi API
       const result = await api.addToCart(userId, productId, 1);
-      console.log("Add to cart result:", result);
+      console.log("Kết quả thêm vào giỏ hàng:", result);
 
       Alert.alert("Thành công", `Đã thêm ${item.name} vào giỏ hàng`, [
         { text: "Tiếp tục mua sắm", style: "cancel" },
         { text: "Xem giỏ hàng", onPress: () => navigation.navigate("Cart") },
       ]);
     } catch (error: any) {
-      console.error("Error adding to cart:", error);
+      console.error("Lỗi khi thêm vào giỏ hàng:", error);
       let errorMessage = "Không thể thêm vào giỏ hàng";
 
       if (error.message) {
@@ -252,14 +252,14 @@ const HomeScreen = () => {
       {/* Header Section */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.welcomeText}>Welcome back!</Text>
-          <Text style={styles.title}>Food Order App</Text>
+          <Text style={styles.welcomeText}>Chào mừng quay trở lại!</Text>
+          <Text style={styles.title}>Balama App</Text>
         </View>
       </View>
 
       {/* Categories Section */}
       <View style={styles.categoriesSection}>
-        <Text style={styles.sectionTitle}>Categories</Text>
+        <Text style={styles.sectionTitle}>Danh mục</Text>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -289,7 +289,7 @@ const HomeScreen = () => {
 
       {/* Popular Items Section */}
       <View style={styles.popularSection}>
-        <Text style={styles.sectionTitle}>Popular Items</Text>
+        <Text style={styles.sectionTitle}>Món ăn phổ biến</Text>
         <FlatList
           data={popularItems}
           renderItem={({ item }) => (
@@ -303,7 +303,7 @@ const HomeScreen = () => {
               <View style={styles.foodInfo}>
                 <Text style={styles.foodName}>{item.name}</Text>
                 <Text style={styles.foodDescription} numberOfLines={2}>
-                  {item.description || "No description"}
+                  {item.description || "Không có mô tả"}
                 </Text>
                 <View style={styles.foodPriceRow}>
                   <Text style={styles.foodPrice}>
